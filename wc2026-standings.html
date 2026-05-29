@@ -133,6 +133,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 .hidden{display:none!important;}
 .locked-banner{background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.2);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:#e74c3c;margin-bottom:1rem;}
+
+/* STATS */
+.stat-group{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.1rem;margin-bottom:10px;}
+.stat-team-row{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12px;}
+.stat-bar-wrap{flex:1;background:var(--surface2);border-radius:3px;height:8px;overflow:hidden;}
+.stat-bar{height:100%;border-radius:3px;}
 </style>
 </head>
 <body>
@@ -146,6 +152,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   <nav class="nav">
     <button class="nav-btn active" onclick="showPage('pool')">Pool Standings</button>
     <button class="nav-btn" onclick="showPage('groups')">Groups</button>
+    <button class="nav-btn" onclick="showPage('stats')">Stats</button>
     <button class="nav-btn" onclick="showPage('admin')">Admin</button>
   </nav>
 </header>
@@ -179,12 +186,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   <table class="pool-table" id="pool-table">
     <thead><tr>
       <th>Rank</th><th>Player</th>
-      <th>Advance</th><th>Position</th><th>Total</th>
+      <th>Group Adv</th><th>Group Pos</th><th>Group</th><th>KO</th><th>Total</th>
     </tr></thead>
     <tbody id="pool-tbody"></tbody>
   </table>
   <div style="margin-top:1rem;font-size:11px;color:var(--text-dim)">
-    Advance = correct team advancing (1pt each) · Position = correct finishing position bonus (1pt each) · Max 64pts
+    Group: Advance (1pt) + Position bonus (1pt) · KO: 4/8/16/32/64 pts per round
   </div>
 </div>
 
@@ -243,8 +250,24 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <div id="picks-editor"></div>
     </div>
 
+
     <div class="admin-section">
-      <h3>Match Results</h3>
+      <h3>KO Picks &amp; Bracket</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Load KO picks from the sheet and set resolved teams for each bracket slot as groups finish.</p>
+      <button class="btn btn-secondary btn-sm" onclick="loadKoFromSheet()">&#8595; Load KO Picks from Sheet</button>
+      <div id="ko-sheet-status" style="font-size:12px;color:var(--text-muted);margin-top:6px;margin-bottom:1rem"></div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Bracket Slot → Team</div>
+      <div id="bracket-slots"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>KO Results</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Enter KO match results to score picks. Match IDs correspond to the bracket (r32-0 through final-0).</p>
+      <div id="ko-result-entries" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Group Match Results</h3>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">
         Enter scores as matches are played. Group tables, third-place rankings, and pool standings update automatically.<br>
         <strong style="color:var(--text)">FP</strong> = Fair Play deduction (0 most of the time — only enter if needed for a tiebreaker: Yellow=-1, Indirect red=-3, Direct red=-4, Yellow+red=-5).
@@ -253,6 +276,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
 
   </div>
+</div>
+
+
+<!-- STATS PAGE -->
+<div class="page" id="page-stats">
+  <div class="section-title">Pick Stats</div>
+  <div id="stats-content"></div>
 </div>
 
 </main>
@@ -390,6 +420,9 @@ let isAdmin=false;
 let state={
   results:{},
   players:{},
+  koPicks:{},
+  koResults:{},
+  resolvedTeams:{},
   sheetUrl:'',
 };
 
@@ -488,9 +521,11 @@ function getAllThirds(){
 }
 
 // ─── POOL SCORING ─────────────────────────────────────────────
+const ROUND_PTS_KO={ro32:4,ro16:8,qf:16,sf:32,final:64};
+
 function calcPoolScore(playerName){
   const player=state.players[playerName];
-  if(!player||!player.groupPicks) return {advance:0,position:0,total:0};
+  if(!player||!player.groupPicks) return {advance:0,position:0,groupTotal:0,koTotal:0,total:0};
   let advance=0, position=0;
   const thirds=getAllThirds();
   const advancingThirds=thirds.slice(0,8).map(t=>t.name);
@@ -498,25 +533,35 @@ function calcPoolScore(playerName){
   GKEYS.forEach(letter=>{
     const table=calcGroupTable(letter);
     const picks=player.groupPicks[letter]||{};
-    // picks format: {1:'Mexico', 2:'SouthAfrica', 3:'Czechia'}
     [1,2,3].forEach(rank=>{
       const pickedTeam=picks[rank];
       if(!pickedTeam) return;
-      // Check if team advanced
-      const pos1=table[0]?.name, pos2=table[1]?.name, pos3=table[2]?.name;
-      const advanced1=pos1&&table.findIndex(t=>t.name===pickedTeam)===0;
-      const advanced2=pos2&&table.findIndex(t=>t.name===pickedTeam)===1;
-      const advanced3=pos3&&advancingThirds.includes(pickedTeam);
+      const advanced1=table[0]?.name===pickedTeam;
+      const advanced2=table[1]?.name===pickedTeam;
+      const advanced3=advancingThirds.includes(pickedTeam)&&table[2]?.name===pickedTeam;
       const teamAdvanced=advanced1||advanced2||advanced3;
       if(teamAdvanced){
         advance++;
-        // Position bonus
         const actualPos=table.findIndex(t=>t.name===pickedTeam)+1;
         if(actualPos===rank) position++;
       }
     });
   });
-  return {advance, position, total:advance+position};
+
+  // KO scoring
+  let koTotal=0;
+  const koPicks=state.koPicks[playerName]||{};
+  Object.entries(koPicks).forEach(([matchId,picked])=>{
+    if(!picked) return;
+    const res=state.koResults&&state.koResults[matchId];
+    if(res&&res===picked){
+      const round=matchId.startsWith('r32')?'ro32':matchId.startsWith('r16')?'ro16':matchId.startsWith('qf')?'qf':matchId.startsWith('sf')?'sf':'final';
+      koTotal+=ROUND_PTS_KO[round]||0;
+    }
+  });
+
+  const groupTotal=advance+position;
+  return {advance, position, groupTotal, koTotal, total:groupTotal+koTotal};
 }
 
 // ─── NAV ─────────────────────────────────────────────────────
@@ -524,11 +569,12 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={pool:0,groups:1,admin:2}[id];
+  const idx={pool:0,groups:1,stats:2,admin:3}[id];
   if(idx!==undefined) document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(id==='groups') renderGroups();
   if(id==='pool') renderPool();
   if(id==='admin'&&isAdmin) renderAdmin();
+  if(id==='stats') renderStats();
 }
 
 // ─── RENDER GROUPS ────────────────────────────────────────────
@@ -584,7 +630,7 @@ function renderPool(){
     tbody.innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem">No players entered yet. Add players in Admin.</td></tr>`;
     return;
   }
-  const scores=players.map(name=>({name,...calcPoolScore(name)})).sort((a,b)=>b.total-a.total||b.advance-a.advance);
+  const scores=players.map(name=>({name,...calcPoolScore(name)})).sort((a,b)=>b.total-a.total||b.groupTotal-a.groupTotal||b.advance-a.advance);
   tbody.innerHTML='';
   let rank=1;
   scores.forEach((row,i)=>{
@@ -594,6 +640,8 @@ function renderPool(){
       <td style="font-weight:500">${row.name}</td>
       <td class="pts-sub">${row.advance}</td>
       <td class="pts-sub">${row.position}</td>
+      <td class="pts-sub">${row.groupTotal}</td>
+      <td class="pts-sub">${row.koTotal}</td>
       <td class="pts-total">${row.total}</td>
     </tr>`;
   });
@@ -612,10 +660,11 @@ function doAdminLogin(){
 }
 
 function renderAdmin(){
-  // Restore saved sheet URL
   if(state.sheetUrl) document.getElementById('sheet-url-input').value=state.sheetUrl;
   renderPlayerChips();
   renderPicksEditor();
+  renderBracketSlots();
+  renderKoResultEntries();
   renderMatchEntries();
 }
 
@@ -853,6 +902,171 @@ function importPlayerRow(name, row){
   });
   state.players[name].groupPicks = picks;
   state.players[name].email = (row['Email']||'').toLowerCase().trim();
+}
+
+
+// ─── RENDER STATS ─────────────────────────────────────────────
+function renderStats(){
+  const el=document.getElementById('stats-content');
+  const players=Object.keys(state.players);
+  if(!players.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:3rem">No players yet.</div>';return;}
+  const n=players.length;
+  let html='<div style="display:flex;gap:16px;margin-bottom:1rem;font-size:12px;color:var(--text-muted)">'
+    +'<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--gold);margin-right:4px"></span>1st</span>'
+    +'<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-right:4px"></span>2nd</span>'
+    +'<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue);margin-right:4px"></span>3rd advances</span>'
+    +'</div>';
+  GKEYS.forEach(letter=>{
+    const teams=GROUPS[letter];
+    const counts=teams.map(team=>{
+      let c1=0,c2=0,c3=0;
+      players.forEach(p=>{
+        const gp=state.players[p].groupPicks||{};
+        const r=(gp[letter]||{})[1]===team?1:(gp[letter]||{})[2]===team?2:(gp[letter]||{})[3]===team?3:0;
+        if(r===1)c1++;else if(r===2)c2++;else if(r===3)c3++;
+      });
+      return{team,c1,c2,c3,total:c1+c2+c3};
+    });
+    counts.sort((a,b)=>b.total-a.total||b.c1-a.c1||b.c2-a.c2);
+    const maxTotal=counts[0]?.total||1;
+    html+=`<div class="stat-group"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;"><span style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--gold)">Group ${letter}</span><span style="font-size:11px;color:var(--text-muted);margin-left:auto">${n} player${n!==1?'s':''}</span></div>`;
+    counts.forEach(({team,c1,c2,c3,total})=>{
+      const barW=Math.round(total/maxTotal*100);
+      const p1=n?Math.round(c1/n*100):0,p2=n?Math.round(c2/n*100):0,p3=n?Math.round(c3/n*100):0;
+      html+=`<div class="stat-team-row">
+        ${fi(team)}<span style="flex:0 0 130px;font-size:12px">${team}</span>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="stat-bar-wrap"><div class="stat-bar" style="width:${barW}%;background:linear-gradient(90deg,var(--gold) ${p1}%,var(--green) ${p1}% ${p1+p2}%,var(--blue) ${p1+p2}% ${p1+p2+p3}%,var(--surface2) ${p1+p2+p3}%)"></div></div>
+            <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-muted);min-width:90px;text-align:right">
+              ${c1?`<span style="color:var(--gold)">${c1}</span>·`:'0·'}${c2?`<span style="color:var(--green)">${c2}</span>·`:'0·'}${c3?`<span style="color:var(--blue)">${c3}</span>`:'0'}
+            </span>
+            <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);min-width:30px;text-align:right">${total?Math.round(total/n*100)+'%':''}</span>
+          </div>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  el.innerHTML=html;
+}
+
+// ─── LOAD KO PICKS FROM SHEET ─────────────────────────────────
+async function loadKoFromSheet(){
+  const url=(document.getElementById('sheet-url-input').value.trim())||state.sheetUrl;
+  const statusEl=document.getElementById('ko-sheet-status');
+  if(!url||url==='YOUR_GOOGLE_APPS_SCRIPT_URL_HERE'){statusEl.textContent='Paste your Apps Script URL first.';statusEl.style.color='#e74c3c';return;}
+  statusEl.textContent='Fetching KO picks and bracket...';statusEl.style.color='var(--text-muted)';
+  try{
+    const res=await fetch(url);
+    const data=await res.json();
+    if(data.status!=='ok') throw new Error(data.message||'Unknown error');
+
+    // Load resolved bracket teams
+    if(data.bracket){
+      state.resolvedTeams=data.bracket;
+    }
+
+    // Load KO picks — group by email, take latest per email
+    if(data.koPicks&&data.koPicks.length){
+      const byEmail={};
+      data.koPicks.forEach(row=>{
+        const email=(row['Email']||'').toLowerCase().trim();
+        const name=(row['Name']||'').trim();
+        if(!email||!name) return;
+        // Match to existing player by email
+        const playerName=Object.keys(state.players).find(p=>state.players[p].email===email)||name;
+        if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
+          byEmail[email]={name:playerName,row,ts:row['Timestamp']};
+        }
+      });
+      Object.values(byEmail).forEach(({name,row})=>{
+        const koPicks={};
+        const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
+        KO_IDS.forEach(id=>{ if(row[id]) koPicks[id]=row[id]; });
+        state.koPicks[name]=koPicks;
+      });
+    }
+
+    saveState();
+    renderAdmin();
+    statusEl.textContent=`KO picks loaded for ${Object.keys(state.koPicks).length} player(s). Bracket slots: ${Object.keys(state.resolvedTeams).length} resolved. ✓`;
+    statusEl.style.color='var(--green)';
+    showToast('KO picks loaded','success');
+  }catch(err){
+    statusEl.textContent='Error: '+err.message;
+    statusEl.style.color='#e74c3c';
+  }
+}
+
+// ─── BRACKET SLOT RESOLVER (admin) ────────────────────────────
+function renderBracketSlots(){
+  const el=document.getElementById('bracket-slots');
+  if(!el) return;
+  const SLOT_LABELS=[
+    '1A','2A','1B','2B','1C','2C','1D','2D','1E','2E',
+    '1F','2F','1G','2G','1H','2H','1I','2I','1J','2J',
+    '1K','2K','1L','2L',
+    '3A/B/C/D/F','3C/D/F/G/H','3B/E/F/I/J','3A/E/H/I/J',
+    '3B/E/F/I/J','3A/B/C/D/G/H','3C/E/F/H/I','3D/E/H/I/J/K','3E/F/G/I/J',
+  ];
+  const allTeams=[
+    'Mexico','South Africa','Korea Republic','Czechia',
+    'Canada','Switzerland','Qatar','Bosnia & Herz.',
+    'Brazil','Morocco','Scotland','Haiti',
+    'United States','Paraguay','Australia','Turkey',
+    'Germany','Ecuador',"Cote d'Ivoire",'Curacao',
+    'Netherlands','Japan','Tunisia','Sweden',
+    'Belgium','Egypt','Iran','New Zealand',
+    'Spain','Uruguay','Saudi Arabia','Cabo Verde',
+    'France','Senegal','Norway','Iraq',
+    'Argentina','Austria','Algeria','Jordan',
+    'Portugal','Colombia','Uzbekistan','DR Congo',
+    'England','Croatia','Ghana','Panama',
+  ];
+  const opts='<option value="">— TBD —</option>'+allTeams.map(t=>`<option value="${t}">${t}</option>`).join('');
+  let html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">';
+  SLOT_LABELS.forEach(slot=>{
+    const val=state.resolvedTeams[slot]||'';
+    html+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:7px 10px;font-size:12px;display:flex;align-items:center;gap:8px">
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim);min-width:80px">${slot}</span>
+      <select style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:3px 5px;color:var(--text);font-size:11px" onchange="setSlot('${slot.replace(/'/g,"\'")}',this.value)">
+        ${opts.replace(`value="${val}"`,`value="${val}" selected`)}
+      </select>
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function setSlot(slot,team){
+  state.resolvedTeams[slot]=team;
+  saveState();
+}
+
+
+function renderKoResultEntries(){
+  const el=document.getElementById('ko-result-entries');
+  if(!el) return;
+  const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
+  if(!state.koResults) state.koResults={};
+  let html='';
+  KO_IDS.forEach(id=>{
+    const val=state.koResults[id]||'';
+    const round=id.startsWith('r32')?'Ro32':id.startsWith('r16')?'Ro16':id.startsWith('qf')?'QF':id.startsWith('sf')?'SF':'Final';
+    html+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;font-size:12px">
+      <div style="color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:4px;font-size:10px">${round} · ${id}</div>
+      <input class="form-input" style="font-size:12px;padding:5px 8px" placeholder="Winning team" value="${val}" onchange="setKoResult('${id}',this.value)">
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function setKoResult(matchId,team){
+  if(!state.koResults) state.koResults={};
+  state.koResults[matchId]=team;
+  saveState();
+  if(document.getElementById('page-pool').classList.contains('active')) renderPool();
 }
 
 // ─── INIT ────────────────────────────────────────────────────
