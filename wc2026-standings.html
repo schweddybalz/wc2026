@@ -1350,29 +1350,140 @@ function setSlot(slot,team){
 }
 
 
+function getMatchTeams(matchId){
+  // Returns [homeTeam, awayTeam] for a given match ID
+  // For Ro32, teams come from resolvedTeams
+  // For later rounds, teams are winners of previous matches
+  const ro32=RO32_SLOTS;
+  const ro16Pairs=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15]];
+  const qfPairs=[[0,1],[2,3],[4,5],[6,7]];
+  const sfPairs=[[0,1],[2,3]];
+
+  if(matchId.startsWith('r32-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const m=ro32[i];
+    return [state.resolvedTeams[m.home]||null, state.resolvedTeams[m.away]||null];
+  }
+  if(matchId.startsWith('r16-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const [a,b]=ro16Pairs[i];
+    return [state.koResults[`r32-${a}`]||null, state.koResults[`r32-${b}`]||null];
+  }
+  if(matchId.startsWith('qf-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const [a,b]=qfPairs[i];
+    return [state.koResults[`r16-${a}`]||null, state.koResults[`r16-${b}`]||null];
+  }
+  if(matchId.startsWith('sf-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const [a,b]=sfPairs[i];
+    return [state.koResults[`qf-${a}`]||null, state.koResults[`qf-${b}`]||null];
+  }
+  if(matchId==='final-0'){
+    return [state.koResults['sf-0']||null, state.koResults['sf-1']||null];
+  }
+  return [null,null];
+}
+
 function renderKoResultEntries(){
   const el=document.getElementById('ko-result-entries');
   if(!el) return;
-  const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
   if(!state.koResults) state.koResults={};
+
+  const ROUND_GROUPS=[
+    {label:'Round of 32', ids:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15']},
+    {label:'Round of 16', ids:['r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7']},
+    {label:'Quarterfinals',ids:['qf-0','qf-1','qf-2','qf-3']},
+    {label:'Semifinals',  ids:['sf-0','sf-1']},
+    {label:'Final',       ids:['final-0']},
+  ];
+
   let html='';
-  KO_IDS.forEach(id=>{
-    const val=state.koResults[id]||'';
-    const round=id.startsWith('r32')?'Ro32':id.startsWith('r16')?'Ro16':id.startsWith('qf')?'QF':id.startsWith('sf')?'SF':'Final';
-    html+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;font-size:12px">
-      <div style="color:var(--text-dim);font-family:'DM Mono',monospace;margin-bottom:4px;font-size:10px">${round} · ${id}</div>
-      <input class="form-input" style="font-size:12px;padding:5px 8px" placeholder="Winning team" value="${val}" onchange="setKoResult('${id}',this.value)">
-    </div>`;
+  ROUND_GROUPS.forEach(({label,ids})=>{
+    html+=`<div style="margin-bottom:1rem">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${label}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px">`;
+    ids.forEach(id=>{
+      const [home,away]=getMatchTeams(id);
+      const val=state.koResults[id]||'';
+      const hasBoth=home&&away;
+      const matchNum=id.split('-')[1];
+
+      let opts='<option value="">— Pending —</option>';
+      if(home) opts+=`<option value="${home}" ${val===home?'selected':''}>${home}</option>`;
+      if(away) opts+=`<option value="${away}" ${val===away?'selected':''}>${away}</option>`;
+      if(!home&&!away) opts='<option value="">— Teams TBD —</option>';
+      else if(!home||!away) opts='<option value="">— Waiting for result —</option>';
+
+      const homeFi=home?fi(home,12):'';
+      const awayFi=away?fi(away,12):'';
+
+      html+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;font-size:12px">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;color:var(--text-muted);font-size:11px">
+          ${homeFi}<span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${home||'TBD'}</span>
+          <span style="color:var(--text-dim)">vs</span>
+          <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${away||'TBD'}</span>${awayFi}
+        </div>
+        <select style="width:100%;background:var(--bg);border:1px solid ${val?'rgba(45,158,86,.4)':'var(--border)'};border-radius:3px;padding:5px 7px;color:${val?'var(--green)':'var(--text)'};font-size:12px;font-family:'DM Mono',monospace;${!hasBoth?'opacity:0.4;':''}"
+          ${!hasBoth?'disabled':''} onchange="setKoResult('${id}',this.value)">
+          ${opts}
+        </select>
+      </div>`;
+    });
+    html+=`</div></div>`;
   });
   el.innerHTML=html;
 }
 
-function setKoResult(matchId,team){
+function setKoResult(matchId, team){
   if(!state.koResults) state.koResults={};
-  state.koResults[matchId]=team;
+  if(!team) delete state.koResults[matchId];
+  else state.koResults[matchId]=team;
+
+  // Clear any downstream results that are now invalid
+  // e.g. if we change an r32 result, the r16 that used that winner needs clearing
+  cascadeKoClear(matchId);
+
   saveState();
+  renderKoResultEntries();
+  renderBracket();
   if(document.getElementById('page-pool').classList.contains('active')) renderPool();
 }
+
+function cascadeKoClear(changedId){
+  // Find what match feeds from changedId and clear if winner no longer valid
+  const ro16Pairs=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15]];
+  const qfPairs=[[0,1],[2,3],[4,5],[6,7]];
+  const sfPairs=[[0,1],[2,3]];
+
+  let nextId=null;
+  if(changedId.startsWith('r32-')){
+    const i=parseInt(changedId.split('-')[1]);
+    const ri=ro16Pairs.findIndex(p=>p.includes(i));
+    if(ri>=0) nextId=`r16-${ri}`;
+  } else if(changedId.startsWith('r16-')){
+    const i=parseInt(changedId.split('-')[1]);
+    const ri=qfPairs.findIndex(p=>p.includes(i));
+    if(ri>=0) nextId=`qf-${ri}`;
+  } else if(changedId.startsWith('qf-')){
+    const i=parseInt(changedId.split('-')[1]);
+    const ri=sfPairs.findIndex(p=>p.includes(i));
+    if(ri>=0) nextId=`sf-${ri}`;
+  } else if(changedId.startsWith('sf-')){
+    nextId='final-0';
+  }
+
+  if(nextId&&state.koResults[nextId]){
+    const [h,a]=getMatchTeams(nextId);
+    const cur=state.koResults[nextId];
+    // If the current result is no longer a valid team in this match, clear it
+    if(cur!==h&&cur!==a){
+      delete state.koResults[nextId];
+      cascadeKoClear(nextId);
+    }
+  }
+}
+
 
 
 // ─── BRACKET DISPLAY ──────────────────────────────────────────
@@ -1433,44 +1544,97 @@ function renderBracket(){
   const el=document.getElementById('bracket-display');
   if(!el) return;
   const rounds=buildBracketRounds();
-  const allRounds=[
-    {key:'ro32',label:'Round of 32',pts:4,matches:rounds.ro32,gap:3},
-    {key:'ro16',label:'Rd of 16',   pts:8,matches:rounds.ro16,gap:19},
-    {key:'qf',  label:'QF',         pts:16,matches:rounds.qf, gap:51},
-    {key:'sf',  label:'SF',         pts:32,matches:rounds.sf, gap:115},
-    {key:'final',label:'Final',     pts:64,matches:rounds.final,gap:243},
+
+  const MATCH_W=160, MATCH_H=52, COL_W=180, HEADER_H=44;
+  // Ro32: 16 matches. Total height = 16 * MATCH_H + 15 gaps
+  // Use uniform spacing: each match slot = TOTAL_H / count
+  const TOTAL_H=16*MATCH_H + 15*6; // 16 matches, 6px gap each
+  const SLOT_H=TOTAL_H/16; // height per Ro32 slot
+
+  const ROUNDS=[
+    {key:'ro32', matches:rounds.ro32, label:'Round of 32', pts:4,  count:16},
+    {key:'ro16', matches:rounds.ro16, label:'Rd of 16',    pts:8,  count:8},
+    {key:'qf',   matches:rounds.qf,   label:'QF',          pts:16, count:4},
+    {key:'sf',   matches:rounds.sf,   label:'SF',          pts:32, count:2},
+    {key:'final',matches:rounds.final,label:'Final',       pts:64, count:1},
   ];
 
-  let html='<div style="display:flex;gap:0">';
-  allRounds.forEach(({key,label,pts,matches,gap})=>{
-    html+=`<div style="flex-shrink:0;width:165px">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;padding:0 6px 10px;text-align:center">${label}<br><span style="color:var(--gold)">${pts}pts</span></div>
-      <div style="display:flex;flex-direction:column;gap:${gap}px">`;
-    matches.forEach(m=>{
+  const totalW = ROUNDS.length * COL_W + 20;
+
+  // Compute vertical center of each match in each round
+  // Ro32: match i is centered at (i + 0.5) * SLOT_H
+  function matchCY(roundIdx, matchIdx){
+    if(roundIdx===0) return (matchIdx+0.5)*SLOT_H;
+    // Each match in round R covers 2^R ro32 slots
+    const span=Math.pow(2,roundIdx);
+    const firstSlot=matchIdx*span;
+    const lastSlot=firstSlot+span-1;
+    return ((firstSlot+lastSlot+1)/2)*SLOT_H;
+  }
+
+  function matchTop(roundIdx, matchIdx){ return matchCY(roundIdx,matchIdx)-MATCH_H/2; }
+
+  let html=`<div style="position:relative;width:${totalW}px;height:${TOTAL_H+HEADER_H+20}px">`;
+
+  // Draw connector lines (SVG layer behind everything)
+  html+=`<svg style="position:absolute;top:${HEADER_H}px;left:0;width:${totalW}px;height:${TOTAL_H}px;overflow:visible;pointer-events:none" xmlns="http://www.w3.org/2000/svg">`;
+  ROUNDS.forEach((_,ri)=>{
+    if(ri===0) return;
+    const col=ri;
+    const x1=(ri-1)*COL_W+MATCH_W+8; // right edge of prev round match
+    const x2=ri*COL_W+4;             // left edge of this round match
+    const xMid=(x1+x2)/2;
+    ROUNDS[ri].matches.forEach((_,mi)=>{
+      const cy=matchCY(ri,mi);
+      // Two source matches
+      const cy0=matchCY(ri-1,mi*2);
+      const cy1=matchCY(ri-1,mi*2+1);
+      // Lines from each source to midpoint, then to this match
+      html+=`<path d="M${x1},${cy0} H${xMid} V${cy} H${x2}" fill="none" stroke="rgba(201,168,76,0.15)" stroke-width="1.5"/>`;
+      html+=`<path d="M${x1},${cy1} H${xMid} V${cy} H${x2}" fill="none" stroke="rgba(201,168,76,0.15)" stroke-width="1.5"/>`;
+    });
+  });
+  html+=`</svg>`;
+
+  // Draw headers and matches
+  ROUNDS.forEach(({key,matches,label,pts},ri)=>{
+    const colX=ri*COL_W;
+    // Header
+    html+=`<div style="position:absolute;top:0;left:${colX}px;width:${MATCH_W}px;text-align:center">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;line-height:1.3">${label}</div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--gold)">${pts}pts</div>
+    </div>`;
+
+    matches.forEach((m,mi)=>{
+      const top=matchTop(ri,mi)+HEADER_H;
       const winner=getMatchWinner(m.id);
       const hName=m.homeName, aName=m.awayName;
       const hLabel=hName||(m.homeSlot||'TBD');
       const aLabel=aName||(m.awaySlot||'TBD');
-      const hResolved=!!hName, aResolved=!!aName;
       const hWon=winner&&winner===hName;
       const aWon=winner&&winner===aName;
+      const hTBD=!hName, aTBD=!aName;
 
-      html+=`<div style="margin:2px 5px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;border-bottom:1px solid var(--border);${hWon?'background:rgba(45,158,86,0.1);':''} ${hWon&&!aWon?'font-weight:500;color:var(--green)':''}${!hResolved?'color:var(--text-dim);font-style:italic':''}">
-          ${hResolved?fi(hName,12):''}
-          <span>${hLabel}</span>
-          ${hWon?'<span style="margin-left:auto;font-size:9px;color:var(--green)">&#10003;</span>':''}
+      html+=`<div style="position:absolute;top:${top}px;left:${colX+4}px;width:${MATCH_W}px;background:var(--surface);border:1px solid ${winner?'rgba(201,168,76,0.3)':'var(--border)'};border-radius:var(--radius);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;height:${MATCH_H/2}px;border-bottom:1px solid var(--border);
+          ${hWon?'background:rgba(45,158,86,0.12);font-weight:500;':''}
+          ${hTBD?'color:var(--text-dim);font-style:italic;':''}">
+          ${hName?fi(hName,12):''}
+          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${hWon?'color:var(--green)':''}">${hLabel}</span>
+          ${hWon?'<span style="font-size:9px;color:var(--green);flex-shrink:0">&#10003;</span>':''}
         </div>
-        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;${aWon?'background:rgba(45,158,86,0.1);':''} ${aWon&&!hWon?'font-weight:500;color:var(--green)':''}${!aResolved?'color:var(--text-dim);font-style:italic':''}">
-          ${aResolved?fi(aName,12):''}
-          <span>${aLabel}</span>
-          ${aWon?'<span style="margin-left:auto;font-size:9px;color:var(--green)">&#10003;</span>':''}
+        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;height:${MATCH_H/2}px;
+          ${aWon?'background:rgba(45,158,86,0.12);font-weight:500;':''}
+          ${aTBD?'color:var(--text-dim);font-style:italic;':''}">
+          ${aName?fi(aName,12):''}
+          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${aWon?'color:var(--green)':''}">${aLabel}</span>
+          ${aWon?'<span style="font-size:9px;color:var(--green);flex-shrink:0">&#10003;</span>':''}
         </div>
       </div>`;
     });
-    html+=`</div></div>`;
   });
-  html+='</div>';
+
+  html+=`</div>`;
   el.innerHTML=html;
 }
 
