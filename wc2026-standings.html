@@ -362,6 +362,25 @@ const FIFA_RANK = {
   'Haiti':79,'Curacao':81,'New Zealand':88,'Jordan':64,
 };
 
+
+// ─── FIFA THREE-LETTER CODES ─────────────────────────────────
+const FIFA_ABBR = {
+  'Mexico':'MEX','South Africa':'RSA','Korea Republic':'KOR','Czechia':'CZE',
+  'Canada':'CAN','Switzerland':'SUI','Qatar':'QAT','Bosnia & Herz.':'BIH',
+  'Brazil':'BRA','Morocco':'MAR','Scotland':'SCO','Haiti':'HAI',
+  'United States':'USA','Paraguay':'PAR','Australia':'AUS','Turkey':'TUR',
+  'Germany':'GER','Ecuador':'ECU',"Cote d'Ivoire":'CIV','Curacao':'CUW',
+  'Netherlands':'NED','Japan':'JPN','Tunisia':'TUN','Sweden':'SWE',
+  'Belgium':'BEL','Egypt':'EGY','Iran':'IRN','New Zealand':'NZL',
+  'Spain':'ESP','Uruguay':'URU','Saudi Arabia':'KSA','Cabo Verde':'CPV',
+  'France':'FRA','Senegal':'SEN','Norway':'NOR','Iraq':'IRQ',
+  'Argentina':'ARG','Austria':'AUT','Algeria':'ALG','Jordan':'JOR',
+  'Portugal':'POR','Colombia':'COL','Uzbekistan':'UZB','DR Congo':'COD',
+  'England':'ENG','Croatia':'CRO','Ghana':'GHA','Panama':'PAN',
+};
+
+function abbr(team){ return FIFA_ABBR[team]||team; }
+
 // ─── GROUPS & SCHEDULE ───────────────────────────────────────
 const GROUPS = {
   A:['Mexico','South Africa','Korea Republic','Czechia'],
@@ -486,12 +505,12 @@ let state={
 };
 
 function loadState(){
-  try{ const r=localStorage.getItem('wc2026-standings-v1'); if(r) state=JSON.parse(r); }catch{}
+  try{ const r=localStorage.getItem('wc2026-standings-v2'); if(r) state=JSON.parse(r); }catch{}
   state.results=state.results||{};
   state.players=state.players||{};
 }
 function saveState(){
-  try{ localStorage.setItem('wc2026-standings-v1',JSON.stringify(state)); }
+  try{ localStorage.setItem('wc2026-standings-v2',JSON.stringify(state)); }
   catch(e){ showToast('Storage error: '+e.message,'error'); }
 }
 
@@ -620,11 +639,15 @@ function getChampionPick(playerName){
 
 function calcRoundKOScore(playerName, round){
   const kp=state.koPicks[playerName]||{};
-  if(!state.koResults) return 0;
+  if(!state.koResults||!Object.keys(kp).length) return 0;
   let score=0;
   (KO_IDS_BY_ROUND[round]||[]).forEach(id=>{
     const winner=state.koResults[id];
-    if(winner&&kp[id]===winner) score+=ROUND_PTS_KO[round];
+    const pick=kp[id];
+    // Both must be non-empty strings and must match
+    if(winner&&pick&&typeof winner==='string'&&typeof pick==='string'&&winner.length>0&&pick.length>0&&winner===pick){
+      score+=ROUND_PTS_KO[round];
+    }
   });
   return score;
 }
@@ -681,6 +704,14 @@ function calcPoolScore(playerName){
   GKEYS.forEach(letter=>{
     const table=calcGroupTable(letter);
     const picks=player.groupPicks[letter]||{};
+
+    // Only score if at least one match in this group has been played
+    const matchesPlayed=MATCHES.filter(m=>m.g===letter).some(m=>{
+      const r=state.results[m.id];
+      return r&&r.hg!==''&&r.hg!==undefined&&r.ag!==''&&r.ag!==undefined&&!isNaN(parseInt(r.hg))&&!isNaN(parseInt(r.ag));
+    });
+    if(!matchesPlayed) return;
+
     [1,2,3].forEach(rank=>{
       const pickedTeam=picks[rank];
       if(!pickedTeam) return;
