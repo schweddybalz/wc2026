@@ -318,6 +318,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <div id="ko-sheet-status" style="font-size:12px;color:var(--text-muted);margin-top:6px;margin-bottom:1rem"></div>
       <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Bracket Slot → Team</div>
       <div id="bracket-slots"></div>
+      <div style="margin-top:1rem">
+        <button class="btn btn-secondary btn-sm" onclick="exportBracket()">&#128196; Export bracket for KO form</button>
+        <div id="bracket-export" class="hidden" style="margin-top:.8rem">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Copy this line and paste it into <code>wc2026-ko-picks.html</code> replacing the line that starts with <code>const RESOLVED_TEAMS</code>:</div>
+          <textarea id="bracket-export-code" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;resize:vertical;min-height:80px" readonly onclick="this.select()"></textarea>
+        </div>
+      </div>
     </div>
 
     <div class="admin-section">
@@ -959,31 +966,6 @@ function renderGroups(){
   });
 }
 
-// ─── RENDER POOL ──────────────────────────────────────────────
-function renderPool(){
-  const players=Object.keys(state.players);
-  const tbody=document.getElementById('pool-tbody');
-  if(!players.length){
-    tbody.innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem">No players entered yet. Add players in Admin.</td></tr>`;
-    return;
-  }
-  const scores=players.map(name=>({name,...calcPoolScore(name)})).sort((a,b)=>b.total-a.total||b.groupTotal-a.groupTotal||b.advance-a.advance);
-  tbody.innerHTML='';
-  let rank=1;
-  scores.forEach((row,i)=>{
-    if(i>0&&scores[i].total<scores[i-1].total) rank=i+1;
-    tbody.innerHTML+=`<tr class="pool-row">
-      <td class="rank-cell ${rank<=3?'top':''}">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</td>
-      <td style="font-weight:500">${row.name}</td>
-      <td class="pts-sub">${row.advance}</td>
-      <td class="pts-sub">${row.position}</td>
-      <td class="pts-sub">${row.groupTotal}</td>
-      <td class="pts-sub">${row.koTotal}</td>
-      <td class="pts-total">${row.total}</td>
-    </tr>`;
-  });
-}
-
 // ─── ADMIN ────────────────────────────────────────────────────
 function doAdminLogin(){
   if(document.getElementById('admin-pw').value==='6969'){
@@ -1376,6 +1358,16 @@ function renderBracketSlots(){
   html+='</div>';
   el.innerHTML=html;
 }
+
+function exportBracket(){
+  const filled=Object.entries(state.resolvedTeams).filter(([,v])=>v);
+  if(!filled.length){ showToast('No bracket slots set yet','error'); return; }
+  const code=`const RESOLVED_TEAMS = ${JSON.stringify(state.resolvedTeams, null, 0)};`;
+  document.getElementById('bracket-export-code').value=code;
+  document.getElementById('bracket-export').classList.remove('hidden');
+  showToast(`${filled.length} slots exported`,'success');
+}
+
 
 function setSlot(slot,team){
   state.resolvedTeams[slot]=team;
