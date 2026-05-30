@@ -508,7 +508,7 @@ async function submitPicks(){
     payload[`${l}_3rd`] = rankOf(l,3)||'';
   });
 
-  if(!SHEET_URL||SHEET_URL==='YOUR_GOOGLE_APPS_SCRIPT_URL_HERE'){
+  if(!SHEET_URL||SHEET_URL==='https://script.google.com/macros/s/AKfycby8eDlogjUJI9ghzvOCSGZSXpnwK6v_VuNE5pZo8pzbZDbI9H-Qig8tLlCedxW2oD7utw/exec'){
     // DEV MODE: just show success without actually posting
     console.log('DEV MODE — would send:', payload);
     showSuccess();
