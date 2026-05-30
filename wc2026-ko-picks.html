@@ -424,6 +424,16 @@ function clearDownstream(changedMatchId, newWinner){
   });
 }
 
+
+function getMatchSlotLabels(matchId){
+  if(matchId.startsWith('r32-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const m=RO32[i];
+    return [m.home, m.away];
+  }
+  return ['TBD','TBD'];
+}
+
 function renderBracket(){
   const rounds = buildRounds();
 
@@ -491,8 +501,9 @@ function renderBracket(){
       const top=matchTop(ri,mi)+HEADER_H;
       const winner=picks[m.id];
       const homeN=m.homeName, awayN=m.awayName;
-      const homeLabel=homeN?(FIFA_ABBR[homeN]||homeN):(m.homeSlot||'TBD');
-      const awayLabel=awayN?(FIFA_ABBR[awayN]||awayN):(m.awaySlot||'TBD');
+      const [_hSlot,_aSlot]=getMatchSlotLabels(m.id);
+      const homeLabel=homeN?(FIFA_ABBR[homeN]||homeN):(_hSlot||'?');
+      const awayLabel=awayN?(FIFA_ABBR[awayN]||awayN):(_aSlot||'?');
       const flagSize=isMobile?10:12;
       const homeTBD=!homeN, awayTBD=!awayN;
       const canPick=homeN&&awayN&&!isExpired();

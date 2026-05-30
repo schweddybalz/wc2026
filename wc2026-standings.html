@@ -1464,6 +1464,40 @@ function getMatchTeams(matchId){
   return [null,null];
 }
 
+
+// Returns the slot labels for any match (e.g. '1A', '3A/B/C/D/F', 'W Ro32 1')
+function getMatchSlotLabels(matchId){
+  const ro16Pairs=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15]];
+  const qfPairs=[[0,1],[2,3],[4,5],[6,7]];
+  const sfPairs=[[0,1],[2,3]];
+
+  if(matchId.startsWith('r32-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const m=RO32_SLOTS[i];
+    return [m.home, m.away];
+  }
+  if(matchId.startsWith('r16-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const [a,b]=ro16Pairs[i];
+    const [ha]=getMatchSlotLabels('r32-'+a);
+    const [,hb]=getMatchSlotLabels('r32-'+b);
+    return ['W M'+(a+1), 'W M'+(b+1)];
+  }
+  if(matchId.startsWith('qf-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const [a,b]=qfPairs[i];
+    return ['W R16-'+(a+1), 'W R16-'+(b+1)];
+  }
+  if(matchId.startsWith('sf-')){
+    const i=parseInt(matchId.split('-')[1]);
+    const [a,b]=sfPairs[i];
+    return ['W QF-'+(a+1), 'W QF-'+(b+1)];
+  }
+  if(matchId==='final-0') return ['W SF-1','W SF-2'];
+  return ['?','?'];
+}
+
+
 function renderKoResultEntries(){
   const el=document.getElementById('ko-result-entries');
   if(!el) return;
@@ -1526,8 +1560,9 @@ function renderKoResultEntries(){
       // Build option list
       let homeFi=home?fi(home,13):'';
       let awayFi=away?fi(away,13):'';
-      const homeAbbr=home?(FIFA_ABBR[home]||home):'';
-      const awayAbbr=away?(FIFA_ABBR[away]||away):'';
+      const [hSlot,aSlot]=getMatchSlotLabels(id);
+      const homeAbbr=home?(FIFA_ABBR[home]||home):hSlot;
+      const awayAbbr=away?(FIFA_ABBR[away]||away):aSlot;
 
       // Two clickable team rows — click to set winner
       const hWon=winner===home&&home;
@@ -1765,8 +1800,9 @@ function renderBracket(){
       const top=matchTop(ri,mi)+HEADER_H;
       const winner=getMatchWinner(m.id);
       const hName=m.homeName, aName=m.awayName;
-      const hLabel=hName?abbr(hName):(m.homeSlot||getSlotLabel(rounds,ri,mi,'home'));
-      const aLabel=aName?abbr(aName):(m.awaySlot||getSlotLabel(rounds,ri,mi,'away'));
+      const [_hSlot,_aSlot]=getMatchSlotLabels(m.id);
+      const hLabel=hName?abbr(hName):(_hSlot||'?');
+      const aLabel=aName?abbr(aName):(_aSlot||'?');
       const hWon=winner&&winner===hName;
       const aWon=winner&&winner===aName;
       const hTBD=!hName, aTBD=!aName;
