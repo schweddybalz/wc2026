@@ -29,7 +29,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 /* LAYOUT */
 .main{max-width:1100px;margin:0 auto;padding:1.5rem 1.2rem 4rem;}
-.page{display:none;}.page.active{display:block;}
+.page{display:none;overflow:hidden;}.page.active{display:block;overflow:visible;}
 
 /* SECTION TITLE */
 .section-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;color:var(--gold);margin-bottom:.9rem;display:flex;align-items:center;gap:10px;}
@@ -267,8 +267,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <!-- BRACKET PAGE -->
 <div class="page" id="page-bracket">
   <div class="section-title">Knockout Bracket</div>
-  <div style="overflow-x:auto;padding-bottom:1rem">
-    <div id="bracket-display" style="min-width:900px"></div>
+  <div style="overflow-x:auto;padding-bottom:1rem;max-width:100%">
+    <div id="bracket-display"></div>
   </div>
 </div>
 
@@ -852,16 +852,19 @@ function renderPicks(){
       const advanced1=table[0]?.name===team, advanced2=table[1]?.name===team;
       const advanced3=advancingThirds.includes(team)&&table[2]?.name===team;
       const teamAdvanced=advanced1||advanced2||advanced3;
-      let statusClass='pick-pending', icon='';
+      let statusClass='pick-pending', pts='', icon='';
       if(allPlayed){
+        let earned=0;
+        if(teamAdvanced){ earned++; if(actualPos===rank) earned++; }
         statusClass=teamAdvanced?'pick-correct':'pick-wrong';
         icon=teamAdvanced?' ✓':' ✗';
-        if(teamAdvanced&&actualPos===rank) icon+=' +pos';
+        pts=`<span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;${earned>0?'color:var(--green)':'color:var(--text-dim)'}">${earned}/2</span>`;
       }
       html+=`<div class="picks-group-row">
         <span style="color:${col};font-size:10px;width:22px">${label}</span>
         ${fi(team,14)}
-        <span class="${statusClass}">${team}${icon}</span>
+        <span class="${statusClass}">${abbr(team)}${icon}</span>
+        ${pts}
       </div>`;
     });
     html+=`</div>`;
@@ -890,7 +893,7 @@ function renderPicks(){
         if(isCorrect){ cls='pick-correct'; icon=' ✓'; }
         else if(isWrong){ cls='pick-wrong'; icon=' ✗'; }
         else if(isElim){ cls='pick-wrong'; icon=' ✗'; }
-        html+=`<div class="ko-pick-row">${fi(pick,14)}<span class="${cls}">${pick}${icon}</span><span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim)">${id}</span></div>`;
+        html+=`<div class="ko-pick-row">${fi(pick,14)}<span class="${cls}">${abbr(pick)||pick}${icon}</span><span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;color:var(--text-dim)">${id}</span></div>`;
       });
     });
   }
@@ -1084,11 +1087,11 @@ function renderMatchEntries(){
       const r=state.results[m.id]||{hg:'',ag:'',hfp:0,afp:0};
       const played=r.hg!==''&&r.ag!=='';
       html+=`<div class="match-entry">
-        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">${fi(m.h,16)}<span style="font-size:12px">${m.h}</span></div>
+        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">${fi(m.h,16)}<span style="font-size:12px;font-family:\'DM Mono\',monospace">${abbr(m.h)}</span></div>
         <input class="score-input" type="number" min="0" max="99" value="${r.hg}" placeholder="–" onchange="setResult('${m.id}','hg',this.value)" style="${played?'border-color:var(--green)':''}">
         <span class="vs">vs</span>
         <input class="score-input" type="number" min="0" max="99" value="${r.ag}" placeholder="–" onchange="setResult('${m.id}','ag',this.value)" style="${played?'border-color:var(--green)':''}">
-        <div style="display:flex;align-items:center;gap:6px">${fi(m.a,16)}<span style="font-size:12px">${m.a}</span></div>
+        <div style="display:flex;align-items:center;gap:6px">${fi(m.a,16)}<span style="font-size:12px;font-family:\'DM Mono\',monospace">${abbr(m.a)}</span></div>
         <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim)">
           FP:<input class="fp-input" type="number" min="-99" max="0" value="${r.hfp||0}" onchange="setResult('${m.id}','hfp',this.value)" title="${m.h} FP deduction">
           <input class="fp-input" type="number" min="-99" max="0" value="${r.afp||0}" onchange="setResult('${m.id}','afp',this.value)" title="${m.a} FP deduction">
