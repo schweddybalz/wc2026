@@ -1386,6 +1386,8 @@ function exportBracket(){
 function setSlot(slot,team){
   state.resolvedTeams[slot]=team;
   saveState();
+  renderBracket();
+  renderKoResultEntries();
 }
 
 
@@ -1617,6 +1619,23 @@ function getMatchWinner(matchId){
   return state.koResults?.[matchId]||null;
 }
 
+function getSlotLabel(rounds, roundIdx, matchIdx, side){
+  if(roundIdx===0){
+    const m=rounds.ro32[matchIdx];
+    return side==='home'?m.homeSlot:m.awaySlot;
+  }
+  // For later rounds, show "W" + source match number
+  const ro16Pairs=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15]];
+  const qfPairs=[[0,1],[2,3],[4,5],[6,7]];
+  const sfPairs=[[0,1],[2,3]];
+  const pairMaps=[null,ro16Pairs,qfPairs,sfPairs,[[0,1]]];
+  const pairs=pairMaps[roundIdx];
+  if(!pairs||!pairs[matchIdx]) return '?';
+  const srcIdx=pairs[matchIdx][side==='home'?0:1];
+  const roundNames=['Ro32','Ro16','QF','SF'];
+  return `W ${roundNames[roundIdx-1]} ${srcIdx+1}`;
+}
+
 function buildBracketRounds(){
   const ro32=RO32_SLOTS.map((m,i)=>{
     const hName=resolveSlot(m.home);
@@ -1708,8 +1727,8 @@ function renderBracket(){
       const top=matchTop(ri,mi)+HEADER_H;
       const winner=getMatchWinner(m.id);
       const hName=m.homeName, aName=m.awayName;
-      const hLabel=hName?abbr(hName):(m.homeSlot||'TBD');
-      const aLabel=aName?abbr(aName):(m.awaySlot||'TBD');
+      const hLabel=hName?abbr(hName):(m.homeSlot||getSlotLabel(rounds,ri,mi,'home'));
+      const aLabel=aName?abbr(aName):(m.awaySlot||getSlotLabel(rounds,ri,mi,'away'));
       const hWon=winner&&winner===hName;
       const aWon=winner&&winner===aName;
       const hTBD=!hName, aTBD=!aName;
