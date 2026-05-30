@@ -486,7 +486,7 @@ const FLAG_CODES = {
   'France':'fr','Senegal':'sn','Norway':'no','Iraq':'iq',
   'Argentina':'ar','Austria':'at','Algeria':'dz','Jordan':'jo',
   'Portugal':'pt','Colombia':'co','Uzbekistan':'uz','DR Congo':'cd',
-  'England':'gb','Scotland':'gb',
+  'England':'gb','Croatia':'hr','Ghana':'gh','Panama':'pa','Scotland':'gb',
 };
 function fi(team,size=18){
   const c=FLAG_CODES[team];
@@ -945,7 +945,7 @@ function renderGroups(){
     const advances=i<8;
     const gdStr=t.gd>0?`+${t.gd}`:t.gd;
     tbody.innerHTML+=`<tr class="${advances?'advances':''}">
-      <td><div class="team-cell">${fi(t.name)}<span>${t.name}</span></div></td>
+      <td><div class="team-cell">${fi(t.name,16)}<span style="font-size:11px;font-family:'DM Mono',monospace;font-weight:500">${abbr(t.name)}</span></div></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${t.group}</td>
       <td>${t.p}</td><td>${t.w}</td><td>${t.d}</td><td>${t.l}</td>
       <td>${t.gf}</td><td>${t.ga}</td>
