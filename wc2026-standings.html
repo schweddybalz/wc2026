@@ -283,6 +283,16 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   <div id="admin-body" class="hidden">
 
     <div class="admin-section">
+      <h3>Picks Visibility</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Control when picks are visible to everyone on the Picks tab.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="btn-group-vis" class="btn btn-secondary btn-sm" onclick="toggleSetting('groupPicksPublic')"></button>
+        <button id="btn-ko-vis" class="btn btn-secondary btn-sm" onclick="toggleSetting('koPicksPublic')"></button>
+      </div>
+    </div>
+
+
+    <div class="admin-section">
       <h3>Google Sheet — Load Picks</h3>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Paste your Apps Script web app URL to fetch picks directly from the submission sheet. Duplicates (same email submitted twice) will be flagged for your review.</p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:.8rem">
@@ -515,12 +525,14 @@ let state={
   koResults:{},
   resolvedTeams:{},
   sheetUrl:'',
+  settings:{groupPicksPublic:false,koPicksPublic:false},
 };
 
 function loadState(){
   try{ const r=localStorage.getItem('wc2026-standings-v2'); if(r) state=JSON.parse(r); }catch{}
   state.results=state.results||{};
   state.players=state.players||{};
+  state.settings=state.settings||{groupPicksPublic:false,koPicksPublic:false};
 }
 function saveState(){
   try{ localStorage.setItem('wc2026-standings-v2',JSON.stringify(state)); }
@@ -621,11 +633,8 @@ const KO_IDS_BY_ROUND={
   sf:['sf-0','sf-1'],
   final:['final-0'],
 };
-const GROUP_LOCK  = new Date('2026-06-11T15:00:00Z'); // first group match
-const KO_LOCK     = new Date('2026-06-28T19:00:00Z'); // first KO match
-
-function isGroupLocked(){ return new Date()>GROUP_LOCK; }
-function isKOLocked(){ return new Date()>KO_LOCK; }
+function isGroupLocked(){ return !!(state.settings&&state.settings.groupPicksPublic); }
+function isKOLocked(){ return !!(state.settings&&state.settings.koPicksPublic); }
 
 // Get all teams that have been eliminated from KO (lost a match with a result)
 function getEliminatedTeams(){
@@ -984,6 +993,7 @@ function doAdminLogin(){
 
 function renderAdmin(){
   if(state.sheetUrl) document.getElementById('sheet-url-input').value=state.sheetUrl;
+  updateVisibilityButtons();
   renderPlayerChips();
   renderPicksEditor();
   renderBracketSlots();
@@ -1108,6 +1118,31 @@ function showToast(msg,type){
   clearTimeout(t._t); t._t=setTimeout(()=>{ t.className='toast '+(type||''); },2800);
 }
 
+
+
+function toggleSetting(key){
+  if(!state.settings) state.settings={};
+  state.settings[key]=!state.settings[key];
+  saveState();
+  updateVisibilityButtons();
+  showToast('Updated','success');
+}
+
+function updateVisibilityButtons(){
+  const s=state.settings||{};
+  const bg=document.getElementById('btn-group-vis');
+  const ko=document.getElementById('btn-ko-vis');
+  if(bg){
+    bg.textContent=(s.groupPicksPublic?'🔓 Group Picks Public':'🔒 Group Picks Hidden');
+    bg.style.borderColor=s.groupPicksPublic?'rgba(45,158,86,.5)':'var(--border-bright)';
+    bg.style.color=s.groupPicksPublic?'var(--green)':'var(--text-muted)';
+  }
+  if(ko){
+    ko.textContent=(s.koPicksPublic?'🔓 KO Picks Public':'🔒 KO Picks Hidden');
+    ko.style.borderColor=s.koPicksPublic?'rgba(45,158,86,.5)':'var(--border-bright)';
+    ko.style.color=s.koPicksPublic?'var(--green)':'var(--text-muted)';
+  }
+}
 
 // ─── LOAD FROM SHEET ─────────────────────────────────────────
 function saveSheetUrl(){
