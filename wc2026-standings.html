@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" href="https://flagcdn.com/w40/us.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>World Cup 2026 Pool — USA Edition</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -476,7 +477,7 @@ const MATCHES = [
 const FLAG_CODES = {
   'Mexico':'mx','South Africa':'za','Korea Republic':'kr','Czechia':'cz',
   'Canada':'ca','Switzerland':'ch','Qatar':'qa','Bosnia & Herz.':'ba',
-  'Brazil':'br','Morocco':'ma','Scotland':'gb-sct','Haiti':'ht',
+  'Brazil':'br','Morocco':'ma','Scotland':'gb','Haiti':'ht',
   'United States':'us','Paraguay':'py','Australia':'au','Turkey':'tr',
   'Germany':'de','Ecuador':'ec',"Cote d'Ivoire":'ci','Curacao':'cw',
   'Netherlands':'nl','Japan':'jp','Tunisia':'tn','Sweden':'se',
@@ -485,7 +486,7 @@ const FLAG_CODES = {
   'France':'fr','Senegal':'sn','Norway':'no','Iraq':'iq',
   'Argentina':'ar','Austria':'at','Algeria':'dz','Jordan':'jo',
   'Portugal':'pt','Colombia':'co','Uzbekistan':'uz','DR Congo':'cd',
-  'England':'gb-eng','Croatia':'hr','Ghana':'gh','Panama':'pa',
+  'England':'gb','Scotland':'gb',
 };
 function fi(team,size=18){
   const c=FLAG_CODES[team];
@@ -927,7 +928,7 @@ function renderGroups(){
       const posClass=['pos-1','pos-2','pos-3','pos-4'][i];
       const posLabel=['1','2','3','4'][i];
       const gdStr=row.gd>0?`<span class="gd-pos">+${row.gd}</span>`:row.gd<0?`<span class="gd-neg">${row.gd}</span>`:`0`;
-      html+=`<tr class="${rowClass}"><td><div class="team-cell"><span class="pos-badge ${posClass}">${posLabel}</span>${fi(row.name)}<span style="font-size:12px">${row.name}</span></div></td>
+      html+=`<tr class="${rowClass}"><td><div class="team-cell"><span class="pos-badge ${posClass}">${posLabel}</span>${fi(row.name,16)}<span style="font-size:11px;font-family:'DM Mono',monospace;font-weight:500">${abbr(row.name)}</span></div></td>
         <td>${row.p}</td><td>${row.w}</td><td>${row.d}</td><td>${row.l}</td>
         <td>${row.gf}</td><td>${row.ga}</td><td>${gdStr}</td>
         <td class="pts-cell">${row.pts}</td></tr>`;
@@ -1640,25 +1641,25 @@ function renderBracket(){
       const top=matchTop(ri,mi)+HEADER_H;
       const winner=getMatchWinner(m.id);
       const hName=m.homeName, aName=m.awayName;
-      const hLabel=hName||(m.homeSlot||'TBD');
-      const aLabel=aName||(m.awaySlot||'TBD');
+      const hLabel=hName?abbr(hName):(m.homeSlot||'TBD');
+      const aLabel=aName?abbr(aName):(m.awaySlot||'TBD');
       const hWon=winner&&winner===hName;
       const aWon=winner&&winner===aName;
       const hTBD=!hName, aTBD=!aName;
 
       html+=`<div style="position:absolute;top:${top}px;left:${colX+4}px;width:${MATCH_W}px;background:var(--surface);border:1px solid ${winner?'rgba(201,168,76,0.3)':'var(--border)'};border-radius:var(--radius);overflow:hidden">
-        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;height:${MATCH_H/2}px;border-bottom:1px solid var(--border);
-          ${hWon?'background:rgba(45,158,86,0.12);font-weight:500;':''}
+        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;height:${MATCH_H/2}px;border-bottom:1px solid var(--border);
+          ${hWon?'background:rgba(45,158,86,0.12);':''}
           ${hTBD?'color:var(--text-dim);font-style:italic;':''}">
           ${hName?fi(hName,12):''}
-          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${hWon?'color:var(--green)':''}">${hLabel}</span>
+          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-family:${hName?"'DM Mono',monospace":'inherit'};font-weight:${hWon?'600':'400'};${hWon?'color:var(--green)':hTBD?'color:var(--text-dim)':''}">${hLabel}</span>
           ${hWon?'<span style="font-size:9px;color:var(--green);flex-shrink:0">&#10003;</span>':''}
         </div>
-        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;height:${MATCH_H/2}px;
-          ${aWon?'background:rgba(45,158,86,0.12);font-weight:500;':''}
+        <div style="display:flex;align-items:center;gap:5px;padding:5px 7px;height:${MATCH_H/2}px;
+          ${aWon?'background:rgba(45,158,86,0.12);':''}
           ${aTBD?'color:var(--text-dim);font-style:italic;':''}">
           ${aName?fi(aName,12):''}
-          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${aWon?'color:var(--green)':''}">${aLabel}</span>
+          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-family:${aName?"'DM Mono',monospace":'inherit'};font-weight:${aWon?'600':'400'};${aWon?'color:var(--green)':aTBD?'color:var(--text-dim)':''}">${aLabel}</span>
           ${aWon?'<span style="font-size:9px;color:var(--green);flex-shrink:0">&#10003;</span>':''}
         </div>
       </div>`;
