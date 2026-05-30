@@ -318,8 +318,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <div id="ko-sheet-status" style="font-size:12px;color:var(--text-muted);margin-top:6px;margin-bottom:1rem"></div>
       <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Bracket Slot → Team</div>
       <div id="bracket-slots"></div>
-      <div style="margin-top:1rem">
+      <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-secondary btn-sm" onclick="exportBracket()">&#128196; Export bracket for KO form</button>
+        <button class="btn btn-danger btn-sm" onclick="resetBracket()">&#x21BA; Reset bracket slots</button>
+      </div>
         <div id="bracket-export" class="hidden" style="margin-top:.8rem">
           <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Copy this line and paste it into <code>wc2026-ko-picks.html</code> replacing the line that starts with <code>const RESOLVED_TEAMS</code>:</div>
           <textarea id="bracket-export-code" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px;color:var(--gold);font-family:'DM Mono',monospace;font-size:11px;resize:vertical;min-height:80px" readonly onclick="this.select()"></textarea>
@@ -329,8 +331,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
     <div class="admin-section">
       <h3>KO Results</h3>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Enter KO match results to score picks. Match IDs correspond to the bracket (r32-0 through final-0).</p>
-      <div id="ko-result-entries" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px"></div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Select the winner of each match. Later rounds unlock automatically once previous results are entered.</p>
+      <div style="overflow-x:auto;padding-bottom:.5rem">
+        <div id="ko-result-entries"></div>
+      </div>
     </div>
 
     <div class="admin-section">
@@ -1359,6 +1363,16 @@ function renderBracketSlots(){
   el.innerHTML=html;
 }
 
+function resetBracket(){
+  if(!confirm('Reset all bracket slots and KO results? This cannot be undone.')) return;
+  state.resolvedTeams={};
+  state.koResults={};
+  saveState();
+  renderAdmin();
+  renderBracket();
+  showToast('Bracket reset','success');
+}
+
 function exportBracket(){
   const filled=Object.entries(state.resolvedTeams).filter(([,v])=>v);
   if(!filled.length){ showToast('No bracket slots set yet','error'); return; }
@@ -1416,49 +1430,109 @@ function renderKoResultEntries(){
   if(!state.koResults) state.koResults={};
 
   const ROUND_GROUPS=[
-    {label:'Round of 32', ids:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15']},
-    {label:'Round of 16', ids:['r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7']},
-    {label:'Quarterfinals',ids:['qf-0','qf-1','qf-2','qf-3']},
-    {label:'Semifinals',  ids:['sf-0','sf-1']},
-    {label:'Final',       ids:['final-0']},
+    {label:'Round of 32', pts:4,  ids:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15']},
+    {label:'Rd of 16',    pts:8,  ids:['r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7']},
+    {label:'QF',          pts:16, ids:['qf-0','qf-1','qf-2','qf-3']},
+    {label:'SF',          pts:32, ids:['sf-0','sf-1']},
+    {label:'Final',       pts:64, ids:['final-0']},
   ];
 
-  let html='';
-  ROUND_GROUPS.forEach(({label,ids})=>{
-    html+=`<div style="margin-bottom:1rem">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${label}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px">`;
-    ids.forEach(id=>{
-      const [home,away]=getMatchTeams(id);
-      const val=state.koResults[id]||'';
-      const hasBoth=home&&away;
-      const matchNum=id.split('-')[1];
+  const MATCH_H=50, MATCH_W=160, COL_W=178, HEADER_H=40;
+  const TOTAL_H=16*MATCH_H + 15*4;
+  const SLOT_H=TOTAL_H/16;
 
-      let opts='<option value="">— Pending —</option>';
-      if(home) opts+=`<option value="${home}" ${val===home?'selected':''}>${home}</option>`;
-      if(away) opts+=`<option value="${away}" ${val===away?'selected':''}>${away}</option>`;
-      if(!home&&!away) opts='<option value="">— Teams TBD —</option>';
-      else if(!home||!away) opts='<option value="">— Waiting for result —</option>';
+  function matchCY(ri,mi){
+    if(ri===0) return (mi+0.5)*SLOT_H;
+    const span=Math.pow(2,ri);
+    const first=mi*span,last=first+span-1;
+    return ((first+last+1)/2)*SLOT_H;
+  }
+  function matchTop(ri,mi){ return matchCY(ri,mi)-MATCH_H/2; }
 
-      const homeFi=home?fi(home,12):'';
-      const awayFi=away?fi(away,12):'';
+  const totalW=ROUND_GROUPS.length*COL_W+20;
+  let html=`<div style="position:relative;width:${totalW}px;height:${TOTAL_H+HEADER_H+16}px">`;
 
-      html+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;font-size:12px">
-        <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;color:var(--text-muted);font-size:11px">
-          ${homeFi}<span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${home||'TBD'}</span>
-          <span style="color:var(--text-dim)">vs</span>
-          <span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${away||'TBD'}</span>${awayFi}
-        </div>
-        <select style="width:100%;background:var(--bg);border:1px solid ${val?'rgba(45,158,86,.4)':'var(--border)'};border-radius:3px;padding:5px 7px;color:${val?'var(--green)':'var(--text)'};font-size:12px;font-family:'DM Mono',monospace;${!hasBoth?'opacity:0.4;':''}"
-          ${!hasBoth?'disabled':''} onchange="setKoResult('${id}',this.value)">
-          ${opts}
-        </select>
-      </div>`;
+  // SVG connector lines
+  html+=`<svg style="position:absolute;top:${HEADER_H}px;left:0;width:${totalW}px;height:${TOTAL_H}px;overflow:visible;pointer-events:none" xmlns="http://www.w3.org/2000/svg">`;
+  ROUND_GROUPS.forEach((_,ri)=>{
+    if(ri===0) return;
+    ROUND_GROUPS[ri].ids.forEach((_,mi)=>{
+      const cy=matchCY(ri,mi);
+      const cy0=matchCY(ri-1,mi*2);
+      const cy1=matchCY(ri-1,mi*2+1);
+      const x1=(ri-1)*COL_W+MATCH_W+8;
+      const x2=ri*COL_W+4;
+      const xm=(x1+x2)/2;
+      html+=`<path d="M${x1},${cy0} H${xm} V${cy} H${x2}" fill="none" stroke="rgba(201,168,76,0.12)" stroke-width="1.5"/>`;
+      html+=`<path d="M${x1},${cy1} H${xm} V${cy} H${x2}" fill="none" stroke="rgba(201,168,76,0.12)" stroke-width="1.5"/>`;
     });
-    html+=`</div></div>`;
   });
+  html+=`</svg>`;
+
+  // Headers + matches
+  ROUND_GROUPS.forEach(({label,pts,ids},ri)=>{
+    const colX=ri*COL_W;
+    html+=`<div style="position:absolute;top:0;left:${colX}px;width:${MATCH_W}px;text-align:center">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;line-height:1.3">${label}</div>
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--gold)">${pts}pts</div>
+    </div>`;
+
+    ids.forEach((id,mi)=>{
+      const [home,away]=getMatchTeams(id);
+      const winner=state.koResults[id]||'';
+      const hasBoth=home&&away;
+      const top=matchTop(ri,mi)+HEADER_H;
+
+      // Build option list
+      let homeFi=home?fi(home,13):'';
+      let awayFi=away?fi(away,13):'';
+      const homeAbbr=home?(FIFA_ABBR[home]||home):'';
+      const awayAbbr=away?(FIFA_ABBR[away]||away):'';
+
+      // Two clickable team rows — click to set winner
+      const hWon=winner===home&&home;
+      const aWon=winner===away&&away;
+
+      html+=`<div style="position:absolute;top:${top}px;left:${colX+4}px;width:${MATCH_W}px;background:var(--surface2);border:1px solid ${winner?'rgba(45,158,86,0.35)':'var(--border)'};border-radius:var(--radius);overflow:hidden">`;
+
+      // Home row
+      html+=`<div data-ko-mid="${id}" data-ko-team="${home||''}" data-ko-has="${hasBoth?1:0}"
+        style="display:flex;align-items:center;gap:6px;padding:5px 8px;height:${MATCH_H/2}px;border-bottom:1px solid var(--border);cursor:${hasBoth?'pointer':'default'};
+          ${hWon?'background:rgba(45,158,86,0.12);':''}${!home?'opacity:0.4;':''}">
+        ${homeFi}
+        <span style="flex:1;font-size:11px;font-family:'DM Mono',monospace;${hWon?'color:var(--green);font-weight:600;':''}">${homeAbbr||'TBD'}</span>
+        ${hWon?'<span style="font-size:9px;color:var(--green)">&#10003;</span>':''}
+      </div>`;
+
+      // Away row
+      html+=`<div data-ko-mid="${id}" data-ko-team="${away||''}" data-ko-has="${hasBoth?1:0}"
+        style="display:flex;align-items:center;gap:6px;padding:5px 8px;height:${MATCH_H/2}px;cursor:${hasBoth?'pointer':'default'};
+          ${aWon?'background:rgba(45,158,86,0.12);':''}${!away?'opacity:0.4;':''}">
+        ${awayFi}
+        <span style="flex:1;font-size:11px;font-family:'DM Mono',monospace;${aWon?'color:var(--green);font-weight:600;':''}">${awayAbbr||'TBD'}</span>
+        ${aWon?'<span style="font-size:9px;color:var(--green)">&#10003;</span>':''}
+      </div>`;
+
+      html+=`</div>`;
+    });
+  });
+
+  html+=`</div>`;
   el.innerHTML=html;
+
+  // Delegated click — toggle winner, click again to clear
+  el.addEventListener('click', e=>{
+    const row=e.target.closest('[data-ko-mid]');
+    if(!row||row.dataset.koHas!=='1') return;
+    const mid=row.dataset.koMid;
+    const team=row.dataset.koTeam;
+    if(!team) return;
+    // Click current winner to clear
+    if(state.koResults[mid]===team) setKoResult(mid,'');
+    else setKoResult(mid,team);
+  }, {once:false});
 }
+
 
 function setKoResult(matchId, team){
   if(!state.koResults) state.koResults={};

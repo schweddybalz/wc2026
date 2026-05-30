@@ -46,7 +46,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .instructions strong{color:var(--text);}
 
 /* BRACKET */
-.bracket-scroll{overflow-x:auto;padding-bottom:1rem;}
+.bracket-scroll{padding-bottom:1rem;}
 
 .bracket-round{flex-shrink:0;}
 .round-header{font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;padding:0 6px 10px;text-align:center;}
@@ -178,7 +178,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <div class="val-item" style="display:flex;align-items:center;gap:5px"><div class="vdot bad" id="vdot-picks"></div><span style="color:var(--text-muted)">Picks made: <strong id="v-picks">0/31</strong></span></div>
     </div>
     <div class="bracket-scroll">
-      <div id="bracket-grid" style="position:relative;overflow-x:auto;min-width:860px"></div>
+      <div id="bracket-grid" style="position:relative;overflow-x:auto"></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:space-between;margin-top:1.5rem">
       <button class="btn btn-ghost" onclick="goStep('identity')">&#8592; Back</button>
@@ -438,7 +438,8 @@ function renderBracket(){
   btn.style.opacity = ok?'1':'0.4';
   btn.style.cursor = ok?'pointer':'not-allowed';
 
-  const MATCH_W=148, MATCH_H=52, COL_W=168, HEADER_H=44;
+  const isMobile=window.innerWidth<600;
+  const MATCH_W=isMobile?110:130, MATCH_H=46, COL_W=isMobile?120:142, HEADER_H=40;
   const TOTAL_H=16*MATCH_H + 15*6;
   const SLOT_H=TOTAL_H/16;
 
@@ -482,7 +483,7 @@ function renderBracket(){
   ROUNDS.forEach(({key,matches,label,pts},ri)=>{
     const colX=ri*COL_W;
     html+=`<div style="position:absolute;top:0;left:${colX}px;width:${MATCH_W}px;text-align:center">
-      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;line-height:1.3">${label}</div>
+      <div style="font-size:${isMobile?'8px':'10px'};font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;line-height:1.3">${label}</div>
       <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--gold)">${pts}pts</div>
     </div>`;
 
@@ -492,24 +493,25 @@ function renderBracket(){
       const homeN=m.homeName, awayN=m.awayName;
       const homeLabel=homeN?(FIFA_ABBR[homeN]||homeN):(m.homeSlot||'TBD');
       const awayLabel=awayN?(FIFA_ABBR[awayN]||awayN):(m.awaySlot||'TBD');
+      const flagSize=isMobile?10:12;
       const homeTBD=!homeN, awayTBD=!awayN;
       const canPick=homeN&&awayN&&!isExpired();
       const hPicked=winner===homeN&&homeN;
       const aPicked=winner===awayN&&awayN;
 
       html+=`<div style="position:absolute;top:${top}px;left:${colX+4}px;width:${MATCH_W}px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:${canPick?'pointer':'default'}">
-        <div onclick="${canPick?`pickTeam('${m.id}','${(homeN||'').replace(/'/g,"\'")}')`:''}"
+        <div class="bm-team" data-mid="${m.id}" data-team="${homeN||''}" data-can="${canPick?1:0}"
           style="display:flex;align-items:center;gap:5px;padding:5px 7px;height:${MATCH_H/2}px;border-bottom:1px solid var(--border);
             ${hPicked?'background:rgba(201,168,76,0.1);':''}${homeTBD?'color:var(--text-dim);font-style:italic;':''}">
-          ${homeN?fi(homeN,12):''}
-          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-family:${homeN?"'DM Mono',monospace":'inherit'};${hPicked?'color:var(--gold);font-weight:600;':''}">${homeLabel}</span>
+          ${homeN?fi(homeN,flagSize):''}
+          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:${isMobile?'9px':'11px'};font-family:${homeN?"'DM Mono',monospace":'inherit'};${hPicked?'color:var(--gold);font-weight:600;':''}">${homeLabel}</span>
           ${hPicked?'<span style="font-size:9px;color:var(--gold)">&#9733;</span>':''}
         </div>
-        <div onclick="${canPick?`pickTeam('${m.id}','${(awayN||'').replace(/'/g,"\'")}')`:''}"
+        <div class="bm-team" data-mid="${m.id}" data-team="${awayN||''}" data-can="${canPick?1:0}"
           style="display:flex;align-items:center;gap:5px;padding:5px 7px;height:${MATCH_H/2}px;
             ${aPicked?'background:rgba(201,168,76,0.1);':''}${awayTBD?'color:var(--text-dim);font-style:italic;':''}">
-          ${awayN?fi(awayN,12):''}
-          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-family:${awayN?"'DM Mono',monospace":'inherit'};${aPicked?'color:var(--gold);font-weight:600;':''}">${awayLabel}</span>
+          ${awayN?fi(awayN,flagSize):''}
+          <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:${isMobile?'9px':'11px'};font-family:${awayN?"'DM Mono',monospace":'inherit'};${aPicked?'color:var(--gold);font-weight:600;':''}">${awayLabel}</span>
           ${aPicked?'<span style="font-size:9px;color:var(--gold)">&#9733;</span>':''}
         </div>
       </div>`;
@@ -607,6 +609,16 @@ function showToast(msg,type){
 // ─── INIT ────────────────────────────────────────────────────
 document.getElementById('inp-name').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('inp-email').focus(); });
 document.getElementById('inp-email').addEventListener('keydown',e=>{ if(e.key==='Enter') submitIdentity(); });
+
+// Delegated click handler for bracket team rows
+document.addEventListener('click', e=>{
+  const row = e.target.closest('.bm-team');
+  if(!row) return;
+  if(row.dataset.can !== '1') return;
+  const mid = row.dataset.mid;
+  const team = row.dataset.team;
+  if(mid && team) pickTeam(mid, team);
+});
 </script>
 </body>
 </html>
