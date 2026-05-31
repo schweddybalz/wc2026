@@ -1178,10 +1178,15 @@ async function loadFromSheet(){
 
   try {
     const res = await fetch(url);
-    const data = await res.json();
+    const text = await res.text();
+    console.log('Raw response:', text);
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e){ statusEl.textContent='Invalid response: '+text.slice(0,100); statusEl.style.color='#e74c3c'; return; }
+    console.log('Parsed data:', data);
     if(data.status !== 'ok') throw new Error(data.message||'Unknown error');
 
-    const rows = data.groupPicks;
+    const rows = data.groupPicks || data.picks;
     if(!rows||!rows.length){ statusEl.textContent = 'Sheet is empty.'; return; }
 
     // Group by email, detect duplicates
