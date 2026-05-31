@@ -1262,9 +1262,9 @@ function importPlayerRow(name, row){
   const picks = {};
   'ABCDEFGHIJKL'.split('').forEach(l => {
     picks[l] = {
-      1: fromAbbr(row[`${l}_1st`]||row[`Group ${l} 1st`]||''),
-      2: fromAbbr(row[`${l}_2nd`]||row[`Group ${l} 2nd`]||''),
-      3: fromAbbr(row[`${l}_3rd`]||row[`Group ${l} 3rd`]||''),
+      1: fromAbbr(row[`1${l}`]||row[`${l}_1st`]||row[`Group ${l} 1st`]||''),
+      2: fromAbbr(row[`2${l}`]||row[`${l}_2nd`]||row[`Group ${l} 2nd`]||''),
+      3: fromAbbr(row[`3${l}`]||row[`${l}_3rd`]||row[`Group ${l} 3rd`]||''),
     };
   });
   state.players[name].groupPicks = picks;

@@ -517,9 +517,9 @@ async function submitPicks(){
     timestamp: new Date().toISOString(),
   };
   GKEYS.forEach(l=>{
-    payload[`${l}_1st`] = abbr(rankOf(l,1)||'');
-    payload[`${l}_2nd`] = abbr(rankOf(l,2)||'');
-    payload[`${l}_3rd`] = abbr(rankOf(l,3)||'');
+    payload[`1${l}`] = abbr(rankOf(l,1)||'');
+    payload[`2${l}`] = abbr(rankOf(l,2)||'');
+    payload[`3${l}`] = abbr(rankOf(l,3)||'');
   });
 
   if(!SHEET_URL||SHEET_URL==='YOUR_GOOGLE_APPS_SCRIPT_URL_HERE'){
