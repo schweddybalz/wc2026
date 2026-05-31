@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" href="https://flagcdn.com/w40/us.png">
+<link rel="icon" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/us.svg">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>World Cup 2026 Pool — USA Edition</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -154,9 +154,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
       <div style="background:var(--surface2);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1rem">
         <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem">Knockout Round — 64 pts per round</div>
-        <div style="font-size:13px;color:var(--text-muted);line-height:1.9">
-          Knockout brackets will be submitted once the bracket has been set and MUST be submitted before the first knockout game begins. This will likely be a very short window (less than a day). <br><br>Maximum of <strong style="color:var(--gold)">64 points</strong> for each round of the knockout stage. Points per game in each round noted below.<br><br>
-        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">
           <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:flex;justify-content:space-between;align-items:center">
             <span style="color:var(--text-muted)">Round of 32</span><span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500">4 pts</span>
@@ -286,6 +283,23 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 // ─── CONFIG — paste your Google Apps Script URL here ─────────
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycby8eDlogjUJI9ghzvOCSGZSXpnwK6v_VuNE5pZo8pzbZDbI9H-Qig8tLlCedxW2oD7utw/exec';
 // ─────────────────────────────────────────────────────────────
+
+
+const FIFA_ABBR = {
+  'Mexico':'MEX','South Africa':'RSA','Korea Republic':'KOR','Czechia':'CZE',
+  'Canada':'CAN','Switzerland':'SUI','Qatar':'QAT','Bosnia & Herz.':'BIH',
+  'Brazil':'BRA','Morocco':'MAR','Scotland':'SCO','Haiti':'HAI',
+  'United States':'USA','Paraguay':'PAR','Australia':'AUS','Turkey':'TUR',
+  'Germany':'GER','Ecuador':'ECU',"Cote d'Ivoire":'CIV','Curacao':'CUW',
+  'Netherlands':'NED','Japan':'JPN','Tunisia':'TUN','Sweden':'SWE',
+  'Belgium':'BEL','Egypt':'EGY','Iran':'IRN','New Zealand':'NZL',
+  'Spain':'ESP','Uruguay':'URU','Saudi Arabia':'KSA','Cabo Verde':'CPV',
+  'France':'FRA','Senegal':'SEN','Norway':'NOR','Iraq':'IRQ',
+  'Argentina':'ARG','Austria':'AUT','Algeria':'ALG','Jordan':'JOR',
+  'Portugal':'POR','Colombia':'COL','Uzbekistan':'UZB','DR Congo':'COD',
+  'England':'ENG','Croatia':'CRO','Ghana':'GHA','Panama':'PAN',
+};
+function abbr(team){ return FIFA_ABBR[team]||team; }
 
 const GROUPS = {
   A:['Mexico','South Africa','Korea Republic','Czechia'],
@@ -503,12 +517,12 @@ async function submitPicks(){
     timestamp: new Date().toISOString(),
   };
   GKEYS.forEach(l=>{
-    payload[`${l}_1st`] = rankOf(l,1)||'';
-    payload[`${l}_2nd`] = rankOf(l,2)||'';
-    payload[`${l}_3rd`] = rankOf(l,3)||'';
+    payload[`${l}_1st`] = abbr(rankOf(l,1)||'');
+    payload[`${l}_2nd`] = abbr(rankOf(l,2)||'');
+    payload[`${l}_3rd`] = abbr(rankOf(l,3)||'');
   });
 
-  if(!SHEET_URL||SHEET_URL==='https://script.google.com/macros/s/AKfycby8eDlogjUJI9ghzvOCSGZSXpnwK6v_VuNE5pZo8pzbZDbI9H-Qig8tLlCedxW2oD7utw/exec'){
+  if(!SHEET_URL||SHEET_URL==='YOUR_GOOGLE_APPS_SCRIPT_URL_HERE'){
     // DEV MODE: just show success without actually posting
     console.log('DEV MODE — would send:', payload);
     showSuccess();

@@ -403,6 +403,12 @@ const FIFA_ABBR = {
 
 function abbr(team){ return FIFA_ABBR[team]||team; }
 
+// Reverse lookup: abbreviation -> full name
+const ABBR_TO_TEAM = Object.fromEntries(Object.entries(FIFA_ABBR).map(([k,v])=>[v,k]));
+function fromAbbr(val){ return ABBR_TO_TEAM[val]||val; }
+
+
+
 // ─── GROUPS & SCHEDULE ───────────────────────────────────────
 const GROUPS = {
   A:['Mexico','South Africa','Korea Republic','Czechia'],
@@ -1256,9 +1262,9 @@ function importPlayerRow(name, row){
   const picks = {};
   'ABCDEFGHIJKL'.split('').forEach(l => {
     picks[l] = {
-      1: row[`${l}_1st`]||row[`Group ${l} 1st`]||'',
-      2: row[`${l}_2nd`]||row[`Group ${l} 2nd`]||'',
-      3: row[`${l}_3rd`]||row[`Group ${l} 3rd`]||'',
+      1: fromAbbr(row[`${l}_1st`]||row[`Group ${l} 1st`]||''),
+      2: fromAbbr(row[`${l}_2nd`]||row[`Group ${l} 2nd`]||''),
+      3: fromAbbr(row[`${l}_3rd`]||row[`Group ${l} 3rd`]||''),
     };
   });
   state.players[name].groupPicks = picks;
@@ -1339,7 +1345,7 @@ async function loadKoFromSheet(){
       Object.values(byEmail).forEach(({name,row})=>{
         const koPicks={};
         const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
-        KO_IDS.forEach(id=>{ if(row[id]) koPicks[id]=row[id]; });
+        KO_IDS.forEach(id=>{ if(row[id]) koPicks[id]=fromAbbr(row[id]); });
         state.koPicks[name]=koPicks;
       });
     }
