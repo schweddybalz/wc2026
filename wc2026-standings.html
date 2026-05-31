@@ -1181,7 +1181,7 @@ async function loadFromSheet(){
     const data = await res.json();
     if(data.status !== 'ok') throw new Error(data.message||'Unknown error');
 
-    const rows = data.picks;
+    const rows = data.groupPicks;
     if(!rows||!rows.length){ statusEl.textContent = 'Sheet is empty.'; return; }
 
     // Group by email, detect duplicates
