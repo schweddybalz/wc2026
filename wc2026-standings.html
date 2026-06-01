@@ -429,10 +429,10 @@ const GKEYS = Object.keys(GROUPS);
 const MATCHES = [
   {id:'a1',g:'A',h:'Mexico',a:'South Africa',date:'Jun 11'},
   {id:'a2',g:'A',h:'Korea Republic',a:'Czechia',date:'Jun 11'},
-  {id:'a3',g:'A',h:'Czechia',a:'South Africa',date:'Jun 18'},
-  {id:'a4',g:'A',h:'Mexico',a:'Korea Republic',date:'Jun 18'},
-  {id:'a5',g:'A',h:'Czechia',a:'Mexico',date:'Jun 24'},
-  {id:'a6',g:'A',h:'South Africa',a:'Korea Republic',date:'Jun 24'},
+  {id:'a3',g:'A',h:'South Africa',a:'Czechia',date:'Jun 18'},
+  {id:'a4',g:'A',h:'Switzerland',a:'Mexico',date:'Jun 18'},
+  {id:'a5',g:'A',h:'Mexico',a:'Korea Republic',date:'Jun 22'},
+  {id:'a6',g:'A',h:'Czechia',a:'South Africa',date:'Jun 22'},
   {id:'b1',g:'B',h:'Canada',a:'Bosnia & Herz.',date:'Jun 12'},
   {id:'b2',g:'B',h:'Qatar',a:'Switzerland',date:'Jun 13'},
   {id:'b3',g:'B',h:'Canada',a:'Qatar',date:'Jun 18'},
@@ -683,40 +683,92 @@ function calcRoundKOScore(playerName, round){
 function calcMaxPossible(playerName){
   const player=state.players[playerName];
   if(!player) return 384;
-  const elim=getEliminatedTeams();
   const kp=state.koPicks[playerName]||{};
+  const hasKoPicks=Object.keys(kp).length>0;
 
-  // Group max: 64 - points already lost (teams eliminated before all games played)
-  // Simplified: group max = 64 - confirmed wrong picks so far
-  // For now use 64 minus group points already scored if all games done, else 64
-  const allGroupMatchesPlayed = MATCHES.every(m=>{
-    const r=state.results[m.id];
-    return r&&r.hg!==''&&r.ag!=='';
+  // ── Group max ─────────────────────────────────────────────────
+  // Once a group is fully played, the player's score from that group is locked.
+  // For unfinished groups, assume they could still earn up to 6pts (3 teams × 2pts).
+  let groupMax=0;
+  GKEYS.forEach(letter=>{
+    const groupMatches=MATCHES.filter(m=>m.g===letter);
+    const allPlayed=groupMatches.every(m=>{
+      const r=state.results[m.id];
+      return r&&r.hg!==''&&r.hg!==undefined&&r.ag!==''&&r.ag!==undefined&&!isNaN(parseInt(r.hg))&&!isNaN(parseInt(r.ag));
+    });
+    if(allPlayed){
+      // Group is done — add what was actually scored from this group
+      const {groupTotal}=calcPoolScore(playerName);
+      // Can't easily get per-group score here, so compute it inline
+      const thirds=getAllThirds();
+      const advancingThirds=thirds.slice(0,8).map(t=>t.name);
+      const table=calcGroupTable(letter);
+      const picks=player.groupPicks&&player.groupPicks[letter]||{};
+      [1,2,3].forEach(rank=>{
+        const pickedTeam=picks[rank];
+        if(!pickedTeam) return;
+        const teamAdvanced=
+          table[0]?.name===pickedTeam||
+          table[1]?.name===pickedTeam||
+          (advancingThirds.includes(pickedTeam)&&table[2]?.name===pickedTeam);
+        if(teamAdvanced){
+          groupMax++;
+          if(table.findIndex(t=>t.name===pickedTeam)+1===rank) groupMax++;
+        }
+      });
+    } else {
+      // Group still in progress — max 6pts possible (3 picks × 2pts each)
+      groupMax+=6;
+    }
   });
-  const {groupTotal}=calcPoolScore(playerName);
-  const groupMax = allGroupMatchesPlayed ? groupTotal : 64;
+  // Cap at 64
+  groupMax=Math.min(groupMax,64);
 
-  // KO max: for each round, if their pick is still alive → full round pts possible
-  // if eliminated → 0 for that round and all downstream
+  // ── KO max ────────────────────────────────────────────────────
+  // For each KO round:
+  // - No picks submitted yet → assume full 64pts possible per round
+  // - Pick is wrong (result entered, different winner) → 0 for this match
+  // - Pick's team is eliminated → 0 for this match
+  // - Pick still alive or no result yet → full pts possible for this match
   let koMax=0;
-  let champEliminated=false;
+  const koResults=state.koResults||{};
+
+  // Build set of eliminated teams from actual results
+  const eliminated=new Set();
+  Object.entries(koResults).forEach(([mid,winner])=>{
+    if(!winner) return;
+    // Find the loser — need to know both teams
+    const [home,away]=getMatchTeams(mid);
+    if(home&&home!==winner) eliminated.add(home);
+    if(away&&away!==winner) eliminated.add(away);
+  });
+
   for(const round of KO_ROUNDS){
     const ids=KO_IDS_BY_ROUND[round]||[];
-    let roundPossible=true;
-    // If any result is in and they got it wrong, or their pick for this round is eliminated
-    for(const id of ids){
-      const winner=state.koResults[id];
-      const theirPick=kp[id];
-      if(winner&&theirPick&&theirPick!==winner){ roundPossible=false; break; }
-      if(theirPick&&elim.has(theirPick)){ roundPossible=false; break; }
-      if(!theirPick){ roundPossible=false; break; } // no pick = 0
-    }
-    if(roundPossible){
-      koMax+=ROUND_PTS_KO[round]*ids.length;
-    } else {
-      // Already scored rounds still count
-      koMax+=calcRoundKOScore(playerName,round);
-    }
+    ids.forEach(id=>{
+      const winner=koResults[id];
+      const pick=kp[id];
+      const pts=ROUND_PTS_KO[round];
+
+      if(winner){
+        // Result is in — either they got it right or not
+        if(pick&&pick===winner) koMax+=pts;
+        // else 0 — wrong or no pick
+      } else {
+        // No result yet
+        if(!hasKoPicks){
+          // No KO picks submitted — assume full potential
+          koMax+=pts;
+        } else if(!pick){
+          // Has picks but didn't pick this match — 0
+        } else if(eliminated.has(pick)){
+          // Their pick already eliminated — 0
+        } else {
+          // Pick still alive — full pts possible
+          koMax+=pts;
+        }
+      }
+    });
   }
 
   return groupMax+koMax;
@@ -746,6 +798,8 @@ function calcPoolScore(playerName){
       const advanced1=table[0]?.name===pickedTeam;
       const advanced2=table[1]?.name===pickedTeam;
       const advanced3=advancingThirds.includes(pickedTeam)&&table[2]?.name===pickedTeam;
+      // For 1st/2nd: score once group is complete (position is settled)
+      // For partial results: award 1st/2nd advance points as they come in
       if(advanced1||advanced2||advanced3){
         advance++;
         if(table.findIndex(t=>t.name===pickedTeam)+1===rank) position++;
@@ -1412,6 +1466,16 @@ function renderBracketSlots(){
   el.innerHTML=html;
 }
 
+function resetGroupResults(){
+  if(!confirm('Reset all group match results? This cannot be undone.')) return;
+  state.results={};
+  saveState();
+  renderAdmin();
+  renderGroups();
+  renderPool();
+  showToast('Group results reset','success');
+}
+
 function resetBracket(){
   if(!confirm('Reset all bracket slots and KO results? This cannot be undone.')) return;
   state.resolvedTeams={};
@@ -1606,17 +1670,6 @@ function renderKoResultEntries(){
   html+=`</div>`;
   el.innerHTML=html;
 
-  // Delegated click — toggle winner, click again to clear
-  el.addEventListener('click', e=>{
-    const row=e.target.closest('[data-ko-mid]');
-    if(!row||row.dataset.koHas!=='1') return;
-    const mid=row.dataset.koMid;
-    const team=row.dataset.koTeam;
-    if(!team) return;
-    // Click current winner to clear
-    if(state.koResults[mid]===team) setKoResult(mid,'');
-    else setKoResult(mid,team);
-  }, {once:false});
 }
 
 
@@ -1846,6 +1899,17 @@ function init(){
   loadState();
   renderPool();
   document.getElementById('admin-pw').addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
+
+  // KO results click delegation — set once on document, never re-added
+  document.addEventListener('click', e=>{
+    const row=e.target.closest('[data-ko-mid]');
+    if(!row||row.dataset.koHas!=='1') return;
+    const mid=row.dataset.koMid;
+    const team=row.dataset.koTeam;
+    if(!team) return;
+    if(state.koResults[mid]===team) setKoResult(mid,'');
+    else setKoResult(mid,team);
+  });
   document.querySelectorAll('.modal-overlay').forEach(m=>{
     m.addEventListener('click',e=>{ if(e.target===m) m.classList.add('hidden'); });
   });
