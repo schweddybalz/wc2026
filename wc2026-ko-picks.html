@@ -591,11 +591,17 @@ async function submitPicks(){
   }
 
   try {
-    await fetch(SHEET_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload),
-    });
+    // no-cors fetch — can't read response, assume success after timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      await fetch(SHEET_URL, {
+        method:'POST', mode:'no-cors',
+        body:JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch(e){ /* no-cors abort or network error — proceed anyway */ }
+    clearTimeout(timeout);
     showSuccess();
   } catch(err){
     btn.disabled = false;

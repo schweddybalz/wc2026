@@ -530,13 +530,16 @@ async function submitPicks(){
   }
 
   try{
-    const res=await fetch(SHEET_URL,{
-      method:'POST',
-      mode:'no-cors', // Apps Script requires no-cors
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload),
-    });
-    // no-cors means we can't read the response — assume success
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 8000);
+    try{
+      await fetch(SHEET_URL,{
+        method:'POST', mode:'no-cors',
+        body:JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    }catch(e){ /* no-cors — proceed anyway */ }
+    clearTimeout(timeout);
     showSuccess();
   }catch(err){
     btn.disabled=false;
