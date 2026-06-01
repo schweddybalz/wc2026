@@ -556,6 +556,7 @@ function calcGroupTable(letter){
     if(!r||r.hg===''||r.ag==='') return;
     const hg=parseInt(r.hg), ag=parseInt(r.ag);
     if(isNaN(hg)||isNaN(ag)) return;
+    if(!table[m.h]||!table[m.a]) return;
     table[m.h].p++; table[m.a].p++;
     table[m.h].gf+=hg; table[m.h].ga+=ag;
     table[m.a].gf+=ag; table[m.a].ga+=hg;
@@ -963,12 +964,12 @@ function showPage(id){
   document.getElementById('page-'+id).classList.add('active');
   const idx={pool:0,groups:1,bracket:2,picks:3,stats:4,admin:5}[id];
   if(idx!==undefined) document.querySelectorAll('.nav-btn')[idx].classList.add('active');
-  if(id==='groups') renderGroups();
-  if(id==='pool') renderPool();
-  if(id==='admin'&&isAdmin) renderAdmin();
-  if(id==='stats') renderStats();
-  if(id==='bracket') renderBracket();
-  if(id==='picks') renderPicks();
+  if(id==='groups') try{renderGroups();}catch(e){console.error('renderGroups:',e);}
+  if(id==='pool') try{renderPool();}catch(e){console.error('renderPool:',e);}
+  if(id==='admin'&&isAdmin) try{renderAdmin();}catch(e){console.error('renderAdmin:',e);}
+  if(id==='stats') try{renderStats();}catch(e){console.error('renderStats:',e);}
+  if(id==='bracket') try{renderBracket();}catch(e){console.error('renderBracket:',e);}
+  if(id==='picks') try{renderPicks();}catch(e){console.error('renderPicks:',e);}
 }
 
 // ─── RENDER GROUPS ────────────────────────────────────────────
@@ -1871,7 +1872,7 @@ function renderBracket(){
 // ─── INIT ────────────────────────────────────────────────────
 function init(){
   loadState();
-  renderPool();
+  try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
   document.getElementById('admin-pw').addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
 
   // KO results click delegation — set once on document, never re-added
