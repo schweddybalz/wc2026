@@ -1908,7 +1908,6 @@ function renderSim(){
   if(!players.length){ el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:3rem">No players yet.</div>'; return; }
 
   const koResults=state.koResults||{};
-  const roundLabels={ro32:'Round of 32',ro16:'Round of 16',qf:'Quarterfinals',sf:'Semifinals',final:'Final'};
   const roundPts={ro32:4,ro16:8,qf:16,sf:32,final:64};
   const roundIds={
     ro32:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15'],
@@ -1918,82 +1917,186 @@ function renderSim(){
     final:['final-0'],
   };
 
-  const pending=[];
-  ['ro32','ro16','qf','sf','final'].forEach(round=>{
-    roundIds[round].forEach(id=>{
-      if(!koResults[id]){
-        try{
-          const [home,away]=getMatchTeams(id);
-          if(home&&away) pending.push({id,round,home,away});
-        }catch(e){}
-      }
-    });
-  });
-
-  if(!pending.length){
-    el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:3rem">All KO results entered — nothing left to simulate!</div>';
-    return;
-  }
-
+  // ── Scoring ───────────────────────────────────────────────────
   function simScore(name){
     const base=calcPoolScore(name);
     const kp=state.koPicks[name]||{};
     let bonus=0;
+    // Real results
+    Object.entries(koResults).forEach(([id,winner])=>{
+      if(winner&&kp[id]===winner){
+        const round=id.startsWith('r32')?'ro32':id.startsWith('r16')?'ro16':id.startsWith('qf')?'qf':id.startsWith('sf')?'sf':'final';
+        bonus+=roundPts[round]||0;
+      }
+    });
+    // Sim picks (only for unplayed matches)
     Object.entries(simPicks).forEach(([id,winner])=>{
       if(!koResults[id]&&kp[id]===winner){
         const round=id.startsWith('r32')?'ro32':id.startsWith('r16')?'ro16':id.startsWith('qf')?'qf':id.startsWith('sf')?'sf':'final';
         bonus+=roundPts[round]||0;
       }
     });
-    return base.total+bonus;
+    // subtract already-counted KO from base to avoid double-counting
+    const koAlready=calcP2Total?calcP2Total(name):0;
+    return base.groupTotal+(bonus);
+  }
+
+  // Simpler: use groupTotal + simulate all KO from scratch
+  function simScoreClean(name){
+    const p=state.players[name]; if(!p) return 0;
+    const score=calcPoolScore(name);
+    const kp=state.koPicks[name]||{};
+    let koSim=0;
+    ['ro32','ro16','qf','sf','final'].forEach(round=>{
+      roundIds[round].forEach(id=>{
+        const winner=koResults[id]||simPicks[id];
+        if(winner&&kp[id]===winner) koSim+=roundPts[round];
+      });
+    });
+    return score.groupTotal+koSim;
   }
 
   const realScores={};
   players.forEach(n=>{realScores[n]=calcPoolScore(n).total;});
   const realRanked=[...players].sort((a,b)=>realScores[b]-realScores[a]);
   const simScores={};
-  players.forEach(n=>{simScores[n]=simScore(n);});
+  players.forEach(n=>{simScores[n]=simScoreClean(n);});
   const simRanked=[...players].sort((a,b)=>simScores[b]-simScores[a]);
   const thirdScore=simRanked.length>=3?simScores[simRanked[2]]:0;
+  const simCount=Object.keys(simPicks).length;
+  const totalPending=['ro32','ro16','qf','sf','final'].flatMap(r=>roundIds[r].filter(id=>!koResults[id])).length;
 
-  let matchHtml='<div style="display:flex;flex-direction:column;gap:5px">';
-  let curRound='';
-  pending.forEach(({id,round,home,away})=>{
-    if(round!==curRound){
-      curRound=round;
-      matchHtml+=`<div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-top:8px;margin-bottom:2px">${roundLabels[round]} · ${roundPts[round]}pts</div>`;
-    }
-    const pick=simPicks[id];
-    const hP=pick===home, aP=pick===away;
-    matchHtml+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-      <div data-sim-id="${id}" data-sim-team="${home}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;height:26px;border-bottom:1px solid var(--border);cursor:pointer;${hP?'background:rgba(201,168,76,0.1);':''}">
-        ${fi(home,12)}<span style="font-size:11px;font-family:'DM Mono',monospace;${hP?'color:var(--gold);font-weight:600;':''}">${abbr(home)}</span>${hP?'<span style="margin-left:auto;font-size:9px;color:var(--gold)">&#9733;</span>':''}
-      </div>
-      <div data-sim-id="${id}" data-sim-team="${away}" style="display:flex;align-items:center;gap:6px;padding:6px 8px;height:26px;cursor:pointer;${aP?'background:rgba(201,168,76,0.1);':''}">
-        ${fi(away,12)}<span style="font-size:11px;font-family:'DM Mono',monospace;${aP?'color:var(--gold);font-weight:600;':''}">${abbr(away)}</span>${aP?'<span style="margin-left:auto;font-size:9px;color:var(--gold)">&#9733;</span>':''}
-      </div>
-    </div>`;
-  });
-  matchHtml+='</div>';
-
-  let lbHtml=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;position:sticky;top:70px">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--gold);margin-bottom:10px">Projected Standings</div>`;
+  // ── STANDINGS (full width) ────────────────────────────────────
+  let lbHtml=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;margin-bottom:1.5rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--gold)">Projected Standings</div>
+      <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${simCount}/${totalPending} simulated</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">`;
   simRanked.forEach((name,i)=>{
     const rr=realRanked.indexOf(name);
     const diff=rr-i;
-    const delta=diff>0?`<span style="font-size:10px;color:var(--green);margin-left:2px">&#9650;${diff}</span>`:diff<0?`<span style="font-size:10px;color:#e74c3c;margin-left:2px">&#9660;${Math.abs(diff)}</span>`:'';
+    const delta=diff>0?`<span style="font-size:10px;color:var(--green)">&#9650;${diff}</span>`:diff<0?`<span style="font-size:10px;color:#e74c3c">&#9660;${Math.abs(diff)}</span>`:'<span style="font-size:10px;color:var(--text-dim)">&#8212;</span>';
     const sc=simScores[name];
-    const elim=sc<thirdScore&&i>=3;
-    lbHtml+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(201,168,76,0.06);font-size:13px">
-      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);width:20px">${i+1}</span>
-      <span style="flex:1;font-weight:${i<3?'500':'400'}">${name.split(' ')[0]}</span>${delta}
+    const elim=i>=3&&sc<thirdScore;
+    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    lbHtml+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;display:flex;align-items:center;gap:6px;${i<3?'border:1px solid rgba(201,168,76,0.2)':'border:1px solid var(--border)'}">
+      <span style="font-size:14px">${medal||`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${i+1}</span>`}</span>
+      <span style="flex:1;font-size:12px;font-weight:${i<3?'500':'400'};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${name.split(' ')[0]}</span>
+      ${delta}
       <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:500;${elim?'color:#e74c3c':'color:var(--gold)'}">${sc}</span>
     </div>`;
   });
-  lbHtml+=`<div style="margin-top:8px;font-size:10px;color:var(--text-dim);text-align:center">${Object.keys(simPicks).length}/${pending.length} simulated</div>
-    <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="resetSim()">&#x21BA; Reset</button></div>`;
+  lbHtml+=`</div></div>`;
 
-  el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">${matchHtml}${lbHtml}</div>`;
+  // ── BRACKET (full width, absolute positioned) ─────────────────
+  const MATCH_W=130, MATCH_H=46, COL_W=148, HEADER_H=40;
+  const TOTAL_H=16*MATCH_H+15*4;
+  const SLOT_H=TOTAL_H/16;
+  const ROUNDS=[
+    {key:'ro32',label:'Ro32',pts:4,ids:roundIds.ro32},
+    {key:'ro16',label:'Ro16',pts:8,ids:roundIds.ro16},
+    {key:'qf',  label:'QF', pts:16,ids:roundIds.qf},
+    {key:'sf',  label:'SF', pts:32,ids:roundIds.sf},
+    {key:'final',label:'Final',pts:64,ids:roundIds.final},
+  ];
+
+  function simMatchCY(ri,mi){
+    if(ri===0) return (mi+0.5)*SLOT_H;
+    const span=Math.pow(2,ri);
+    return ((mi*span + mi*span+span-1+1)/2)*SLOT_H;
+  }
+  function simMatchTop(ri,mi){ return simMatchCY(ri,mi)-MATCH_H/2; }
+
+  // Resolve team for a slot — use real result first, then sim pick, then TBD
+  function simResolveSlot(slotLabel){ return state.resolvedTeams[slotLabel]||null; }
+
+  function simGetWinner(id){ return koResults[id]||simPicks[id]||null; }
+
+  function simBuildRounds(){
+    const ro32pairs=[[0,1],[2,3],[4,5],[6,7],[8,9],[10,11],[12,13],[14,15]];
+    const qfpairs=[[0,1],[2,3],[4,5],[6,7]];
+    const sfpairs=[[0,1],[2,3]];
+    const r32=RO32_SLOTS.map((m,i)=>({id:m.id,idx:i,homeSlot:m.home,awaySlot:m.away,homeName:simResolveSlot(m.home),awayName:simResolveSlot(m.away)}));
+    const r16=ro32pairs.map((pair,i)=>({id:`r16-${i}`,idx:i,homeName:simGetWinner(`r32-${pair[0]}`),awayName:simGetWinner(`r32-${pair[1]}`)}));
+    const qf=qfpairs.map((pair,i)=>({id:`qf-${i}`,idx:i,homeName:simGetWinner(`r16-${pair[0]}`),awayName:simGetWinner(`r16-${pair[1]}`)}));
+    const sf=sfpairs.map((pair,i)=>({id:`sf-${i}`,idx:i,homeName:simGetWinner(`qf-${pair[0]}`),awayName:simGetWinner(`qf-${pair[1]}`)}));
+    const fin=[{id:'final-0',idx:0,homeName:simGetWinner('sf-0'),awayName:simGetWinner('sf-1')}];
+    return {ro32:r32,ro16:r16,qf,sf,final:fin};
+  }
+
+  const simRounds=simBuildRounds();
+  const allSimRounds=[
+    {key:'ro32',matches:simRounds.ro32},
+    {key:'ro16',matches:simRounds.ro16},
+    {key:'qf',  matches:simRounds.qf},
+    {key:'sf',  matches:simRounds.sf},
+    {key:'final',matches:simRounds.final},
+  ];
+
+  const totalW=ROUNDS.length*COL_W+20;
+  let bracketHtml=`<div style="overflow-x:auto;padding-bottom:1rem"><div style="position:relative;width:${totalW}px;height:${TOTAL_H+HEADER_H+16}px">`;
+
+  // SVG connectors
+  bracketHtml+=`<svg style="position:absolute;top:${HEADER_H}px;left:0;width:${totalW}px;height:${TOTAL_H}px;overflow:visible;pointer-events:none" xmlns="http://www.w3.org/2000/svg">`;
+  allSimRounds.forEach((_,ri)=>{
+    if(ri===0) return;
+    allSimRounds[ri].matches.forEach((_,mi)=>{
+      const cy=simMatchCY(ri,mi), cy0=simMatchCY(ri-1,mi*2), cy1=simMatchCY(ri-1,mi*2+1);
+      const x1=(ri-1)*COL_W+MATCH_W+8, x2=ri*COL_W+4, xm=(x1+x2)/2;
+      bracketHtml+=`<path d="M${x1},${cy0} H${xm} V${cy} H${x2}" fill="none" stroke="rgba(201,168,76,0.12)" stroke-width="1.5"/>`;
+      bracketHtml+=`<path d="M${x1},${cy1} H${xm} V${cy} H${x2}" fill="none" stroke="rgba(201,168,76,0.12)" stroke-width="1.5"/>`;
+    });
+  });
+  bracketHtml+=`</svg>`;
+
+  // Matches
+  allSimRounds.forEach(({key,matches},ri)=>{
+    const colX=ri*COL_W;
+    const roundDef=ROUNDS[ri];
+    bracketHtml+=`<div style="position:absolute;top:0;left:${colX}px;width:${MATCH_W}px;text-align:center">
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;line-height:1.3">${roundDef.label}</div>
+      <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--gold)">${roundDef.pts}pts</div>
+    </div>`;
+    matches.forEach((m,mi)=>{
+      const top=simMatchTop(ri,mi)+HEADER_H;
+      const hName=m.homeName, aName=m.awayName;
+      const hLabel=hName?abbr(hName):(m.homeSlot||'TBD');
+      const aLabel=aName?abbr(aName):(m.awaySlot||'TBD');
+      const realWinner=koResults[m.id];
+      const simWinner=simPicks[m.id];
+      const isReal=!!realWinner;
+      const hWon=realWinner?realWinner===hName:simWinner===hName;
+      const aWon=realWinner?realWinner===aName:simWinner===aName;
+      const canPick=!isReal&&hName&&aName;
+      // Border color: green if real result, gold if sim pick, default otherwise
+      const borderColor=isReal?'rgba(45,158,86,0.5)':simWinner?'rgba(201,168,76,0.4)':'var(--border)';
+
+      bracketHtml+=`<div style="position:absolute;top:${top}px;left:${colX+4}px;width:${MATCH_W}px;background:var(--surface);border:1px solid ${borderColor};border-radius:var(--radius);overflow:hidden">`;
+      // Home row
+      const hBg=hWon?(isReal?'background:rgba(45,158,86,0.15);':'background:rgba(201,168,76,0.1);'):'';
+      const hColor=hWon?(isReal?'color:var(--green);font-weight:600;':'color:var(--gold);font-weight:600;'):((!hName)?'color:var(--text-dim);font-style:italic;':'');
+      bracketHtml+=`<div data-sim-id="${canPick?m.id:''}" data-sim-team="${hName||''}"
+        style="display:flex;align-items:center;gap:5px;padding:5px 7px;height:${MATCH_H/2}px;border-bottom:1px solid var(--border);cursor:${canPick?'pointer':'default'};${hBg}">
+        ${hName?fi(hName,12):''}
+        <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-family:${hName?"'DM Mono',monospace":'inherit'};${hColor}">${hLabel}</span>
+        ${hWon?`<span style="font-size:9px;${isReal?'color:var(--green)':'color:var(--gold)'}">${isReal?'&#10003;':'&#9733;'}</span>`:''}
+      </div>`;
+      // Away row
+      const aBg=aWon?(isReal?'background:rgba(45,158,86,0.15);':'background:rgba(201,168,76,0.1);'):'';
+      const aColor=aWon?(isReal?'color:var(--green);font-weight:600;':'color:var(--gold);font-weight:600;'):((!aName)?'color:var(--text-dim);font-style:italic;':'');
+      bracketHtml+=`<div data-sim-id="${canPick?m.id:''}" data-sim-team="${aName||''}"
+        style="display:flex;align-items:center;gap:5px;padding:5px 7px;height:${MATCH_H/2}px;cursor:${canPick?'pointer':'default'};${aBg}">
+        ${aName?fi(aName,12):''}
+        <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-family:${aName?"'DM Mono',monospace":'inherit'};${aColor}">${aLabel}</span>
+        ${aWon?`<span style="font-size:9px;${isReal?'color:var(--green)':'color:var(--gold)'}">${isReal?'&#10003;':'&#9733;'}</span>`:''}
+      </div>`;
+      bracketHtml+=`</div>`;
+    });
+  });
+  bracketHtml+=`</div></div>`;
+
+  el.innerHTML=lbHtml+bracketHtml;
 }
 
 // Sim click delegation
