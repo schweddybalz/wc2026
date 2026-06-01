@@ -685,10 +685,11 @@ function calcMaxPossible(playerName){
   if(!player) return 384;
   const kp=state.koPicks[playerName]||{};
   const hasKoPicks=Object.keys(kp).length>0;
+  const koResults=state.koResults||{};
 
   // ── Group max ─────────────────────────────────────────────────
-  // Once a group is fully played, the player's score from that group is locked.
-  // For unfinished groups, assume they could still earn up to 6pts (3 teams × 2pts).
+  const thirds=getAllThirds();
+  const advancingThirds=thirds.slice(0,8).map(t=>t.name);
   let groupMax=0;
   GKEYS.forEach(letter=>{
     const groupMatches=MATCHES.filter(m=>m.g===letter);
@@ -696,77 +697,50 @@ function calcMaxPossible(playerName){
       const r=state.results[m.id];
       return r&&r.hg!==''&&r.hg!==undefined&&r.ag!==''&&r.ag!==undefined&&!isNaN(parseInt(r.hg))&&!isNaN(parseInt(r.ag));
     });
-    if(allPlayed){
-      // Group is done — add what was actually scored from this group
-      const {groupTotal}=calcPoolScore(playerName);
-      // Can't easily get per-group score here, so compute it inline
-      const thirds=getAllThirds();
-      const advancingThirds=thirds.slice(0,8).map(t=>t.name);
-      const table=calcGroupTable(letter);
-      const picks=player.groupPicks&&player.groupPicks[letter]||{};
-      [1,2,3].forEach(rank=>{
-        const pickedTeam=picks[rank];
-        if(!pickedTeam) return;
-        const teamAdvanced=
-          table[0]?.name===pickedTeam||
-          table[1]?.name===pickedTeam||
-          (advancingThirds.includes(pickedTeam)&&table[2]?.name===pickedTeam);
-        if(teamAdvanced){
-          groupMax++;
-          if(table.findIndex(t=>t.name===pickedTeam)+1===rank) groupMax++;
-        }
-      });
-    } else {
-      // Group still in progress — max 6pts possible (3 picks × 2pts each)
-      groupMax+=6;
+    if(!allPlayed){
+      groupMax+=6; // max 3 picks × 2pts
+      return;
     }
+    // Group finished — count only what was actually earned
+    const table=calcGroupTable(letter);
+    const picks=(player.groupPicks&&player.groupPicks[letter])||{};
+    [1,2,3].forEach(rank=>{
+      const t=picks[rank]; if(!t) return;
+      const adv=table[0]?.name===t||table[1]?.name===t||(advancingThirds.includes(t)&&table[2]?.name===t);
+      if(adv){ groupMax++; if(table.findIndex(r=>r.name===t)+1===rank) groupMax++; }
+    });
   });
-  // Cap at 64
   groupMax=Math.min(groupMax,64);
 
-  // ── KO max ────────────────────────────────────────────────────
-  // For each KO round:
-  // - No picks submitted yet → assume full 64pts possible per round
-  // - Pick is wrong (result entered, different winner) → 0 for this match
-  // - Pick's team is eliminated → 0 for this match
-  // - Pick still alive or no result yet → full pts possible for this match
-  let koMax=0;
-  const koResults=state.koResults||{};
-
-  // Build set of eliminated teams from actual results
+  // ── Build eliminated set from koResults ───────────────────────
   const eliminated=new Set();
   Object.entries(koResults).forEach(([mid,winner])=>{
     if(!winner) return;
-    // Find the loser — need to know both teams
-    const [home,away]=getMatchTeams(mid);
-    if(home&&home!==winner) eliminated.add(home);
-    if(away&&away!==winner) eliminated.add(away);
+    // r32 slots known from RO32_SLOTS; later rounds from koResults chain
+    // Simple approach: any team that appears as a loser
+    // We know both teams from getMatchTeams if available
+    try{
+      const [home,away]=getMatchTeams(mid);
+      if(home&&home!==winner) eliminated.add(home);
+      if(away&&away!==winner) eliminated.add(away);
+    }catch(e){}
   });
 
+  // ── KO max ────────────────────────────────────────────────────
+  let koMax=0;
   for(const round of KO_ROUNDS){
     const ids=KO_IDS_BY_ROUND[round]||[];
     ids.forEach(id=>{
       const winner=koResults[id];
       const pick=kp[id];
       const pts=ROUND_PTS_KO[round];
-
       if(winner){
-        // Result is in — either they got it right or not
-        if(pick&&pick===winner) koMax+=pts;
-        // else 0 — wrong or no pick
+        if(pick&&pick===winner) koMax+=pts; // correct pick
       } else {
         // No result yet
-        if(!hasKoPicks){
-          // No KO picks submitted — assume full potential
-          koMax+=pts;
-        } else if(!pick){
-          // Has picks but didn't pick this match — 0
-        } else if(eliminated.has(pick)){
-          // Their pick already eliminated — 0
-        } else {
-          // Pick still alive — full pts possible
-          koMax+=pts;
-        }
+        if(!hasKoPicks) koMax+=pts;           // no picks — assume max
+        else if(pick&&!eliminated.has(pick)) koMax+=pts; // pick still alive
+        // else: no pick or eliminated → 0
       }
     });
   }
