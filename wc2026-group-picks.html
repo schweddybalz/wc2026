@@ -173,6 +173,22 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
         </div>
       </div>
 
+      <div style="background:var(--surface2);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1rem">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem">Entry Fee</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="background:#008CFF;border-radius:8px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <span style="color:#fff;font-weight:700;font-size:15px">V</span>
+            </div>
+            <div>
+              <div style="font-size:13px;color:var(--text-muted)">Venmo <span style="font-family:'DM Mono',monospace;color:var(--gold);font-size:14px">@schweddybalz</span></div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Include your name in the note</div>
+            </div>
+          </div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:40px;color:var(--gold);line-height:1">$50</div>
+        </div>
+      </div>
+
       <div style="background:var(--surface2);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1.5rem">
         <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem">Prize Payout</div>
         <div style="display:flex;gap:8px">
@@ -192,9 +208,11 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
         <div style="font-size:11px;color:var(--text-dim);margin-top:8px">Tied places split the combined payout equally. No tiebreakers.</div>
       </div>
 
-      <button class="btn btn-primary" onclick="goStep('identity')" style="width:100%">I understand — Enter My Details &rarr;</button>
+      <button class="btn btn-primary" onclick="goStep('payment')" style="width:100%">I understand — Enter My Details &rarr;</button>
     </div>
   </div>
+
+
 
   <!-- STEP 2: IDENTITY -->
   <div class="step" id="step-identity">
@@ -234,7 +252,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
     <div class="groups-grid" id="groups-grid"></div>
     <div class="actions" style="justify-content:space-between;margin-top:1rem">
-      <button class="btn btn-ghost" onclick="goStep('identity')">&#8592; Back</button>
+      <button class="btn btn-ghost" onclick="goStep('payment')">&#8592; Back</button>
       <button class="btn btn-primary" id="btn-review" onclick="goReview()" disabled style="opacity:0.4;cursor:not-allowed">Review Picks &rarr;</button>
     </div>
   </div>
@@ -529,24 +547,14 @@ async function submitPicks(){
     return;
   }
 
+  // Fire and forget — no-cors means we can't read the response anyway
   try{
-    const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 8000);
-    try{
-      await fetch(SHEET_URL,{
-        method:'POST', mode:'no-cors',
-        body:JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    }catch(e){ /* no-cors — proceed anyway */ }
-    clearTimeout(timeout);
-    showSuccess();
-  }catch(err){
-    btn.disabled=false;
-    btn.textContent='Submit Picks ✓';
-    errEl.textContent='Submission failed. Check your connection and try again.';
-    errEl.style.display='block';
-  }
+    fetch(SHEET_URL,{
+      method:'POST', mode:'no-cors',
+      body:JSON.stringify(payload),
+    });
+  }catch(e){ /* ignore */ }
+  showSuccess();
 }
 
 function showSuccess(){

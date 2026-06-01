@@ -112,12 +112,37 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
           Points increase each round — getting a Final pick right is worth 16× a Ro32 pick.<br><br>
           <strong style="color:var(--text)">No third place match</strong> — 31 picks total.
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:13px">
-          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Round of 32</span><span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500">4 pts</span></div>
-          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Round of 16</span><span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500">8 pts</span></div>
-          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Quarterfinals</span><span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500">16 pts</span></div>
-          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Semifinals</span><span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500">32 pts</span></div>
-          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:flex;justify-content:space-between;grid-column:1/-1"><span style="color:var(--text-muted)">Final</span><span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500">64 pts</span></div>
+        <div style="margin-top:10px;font-size:12px">
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;align-items:center;margin-bottom:2px">
+            <span style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em"></span>
+            <span style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;text-align:right">per game</span>
+            <span style="font-size:10px;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;text-align:right">round total</span>
+          </div>
+          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:4px">
+            <span style="color:var(--text-muted)">Round of 32 <span style="color:var(--text-dim);font-size:11px">(16 games)</span></span>
+            <span style="color:var(--text-muted);font-family:'DM Mono',monospace;text-align:right">4 pts</span>
+            <span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500;text-align:right">= 64 pts</span>
+          </div>
+          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:4px">
+            <span style="color:var(--text-muted)">Round of 16 <span style="color:var(--text-dim);font-size:11px">(8 games)</span></span>
+            <span style="color:var(--text-muted);font-family:'DM Mono',monospace;text-align:right">8 pts</span>
+            <span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500;text-align:right">= 64 pts</span>
+          </div>
+          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:4px">
+            <span style="color:var(--text-muted)">Quarterfinals <span style="color:var(--text-dim);font-size:11px">(4 games)</span></span>
+            <span style="color:var(--text-muted);font-family:'DM Mono',monospace;text-align:right">16 pts</span>
+            <span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500;text-align:right">= 64 pts</span>
+          </div>
+          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;margin-bottom:4px">
+            <span style="color:var(--text-muted)">Semifinals <span style="color:var(--text-dim);font-size:11px">(2 games)</span></span>
+            <span style="color:var(--text-muted);font-family:'DM Mono',monospace;text-align:right">32 pts</span>
+            <span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500;text-align:right">= 64 pts</span>
+          </div>
+          <div style="background:var(--surface);border-radius:var(--radius);padding:8px 10px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center">
+            <span style="color:var(--text-muted)">Final <span style="color:var(--text-dim);font-size:11px">(1 game)</span></span>
+            <span style="color:var(--text-muted);font-family:'DM Mono',monospace;text-align:right">64 pts</span>
+            <span style="color:var(--gold);font-family:'DM Mono',monospace;font-weight:500;text-align:right">= 64 pts</span>
+          </div>
         </div>
       </div>
       <div style="background:var(--surface2);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1rem">
@@ -590,25 +615,14 @@ async function submitPicks(){
     showSuccess(); return;
   }
 
+  // Fire and forget — no-cors means we can't read the response anyway
   try {
-    // no-cors fetch — can't read response, assume success after timeout
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    try {
-      await fetch(SHEET_URL, {
-        method:'POST', mode:'no-cors',
-        body:JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch(e){ /* no-cors abort or network error — proceed anyway */ }
-    clearTimeout(timeout);
-    showSuccess();
-  } catch(err){
-    btn.disabled = false;
-    btn.textContent = 'Submit Picks ✓';
-    errEl.textContent = 'Submission failed. Check your connection and try again.';
-    errEl.style.display = 'block';
-  }
+    fetch(SHEET_URL, {
+      method:'POST', mode:'no-cors',
+      body:JSON.stringify(payload),
+    });
+  } catch(e){ /* ignore */ }
+  showSuccess();
 }
 
 function showSuccess(){
