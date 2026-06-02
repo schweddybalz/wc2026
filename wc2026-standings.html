@@ -178,14 +178,36 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   .header{padding:0 .8rem;}
   .logo{font-size:15px;letter-spacing:1px;}
   .logo span{font-size:11px;}
-  /* Pool table - hide QF SF F on small screens, keep Grp Ro32 Ro16 Total Max */
-  .pool-col-qf,.pool-col-sf,.pool-col-f{display:none;}
+
   .pool-table th,.pool-table td{padding:8px 5px;font-size:11px;}
   .pts-total{font-size:13px;}
   /* Group tables grid */
   .groups-grid{grid-template-columns:1fr;}
   /* Picks grid */
   .picks-grid{grid-template-columns:1fr;}
+}
+
+/* Pool table sticky columns */
+.pool-scroll-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--radius);}
+.pool-table{border-collapse:separate;border-spacing:0;}
+/* Sticky: col1=rank, col2=player, col9=champ, col10=total, col11=max */
+.pool-table th:nth-child(1),.pool-table td:nth-child(1){position:sticky;left:0;background:var(--bg);z-index:2;}
+.pool-table th:nth-child(2),.pool-table td:nth-child(2){position:sticky;left:36px;background:var(--bg);z-index:2;}
+/* Right-sticky: champ, total, max */
+.pool-table th:nth-child(9),.pool-table td:nth-child(9){position:sticky;right:102px;background:var(--bg);z-index:2;}
+.pool-table th:nth-child(10),.pool-table td:nth-child(10){position:sticky;right:50px;background:var(--bg);z-index:2;}
+.pool-table th:nth-child(11),.pool-table td:nth-child(11){position:sticky;right:0;background:var(--bg);z-index:2;}
+/* On hover, sticky cells need to match row bg */
+.pool-row:hover td:nth-child(1),
+.pool-row:hover td:nth-child(2),
+.pool-row:hover td:nth-child(9),
+.pool-row:hover td:nth-child(10),
+.pool-row:hover td:nth-child(11){background:var(--surface2);}
+/* Subtle separator on sticky right columns */
+.pool-table th:nth-child(9),.pool-table td:nth-child(9){border-left:1px solid var(--border);}
+@media(max-width:600px){
+  .pool-table th,.pool-table td{padding:8px 7px;font-size:11px;}
+  .pts-total{font-size:12px;}
 }
 </style>
 </head>
@@ -234,7 +256,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     <div class="section-title" style="margin-bottom:0;flex:1">Pool Standings</div>
     <div style="font-size:11px;color:var(--text-muted)">Updates live as results are entered</div>
   </div>
-  <div style="overflow-x:auto">
+  <div class="pool-scroll-wrap">
   <table class="pool-table" id="pool-table">
     <thead><tr>
       <th>Rank</th>
@@ -253,7 +275,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </table>
   </div>
   <div style="margin-top:.8rem;font-size:11px;color:var(--text-dim)">
-    Group: 1pt advance + 1pt position · Ro32 4pts · Ro16 8pts · QF 16pts · SF 32pts · F 64pts · Max 384pts
+    Group: 1pt advance + 1pt position · Ro32 2pts · Ro16 4pts · QF 8pts · SF 16pts · F 32pts · Max 224pts
   </div>
 </div>
 
@@ -658,7 +680,7 @@ function getAllThirds(){
 }
 
 // ─── POOL SCORING ─────────────────────────────────────────────
-const ROUND_PTS_KO={ro32:4,ro16:8,qf:16,sf:32,final:64};
+const ROUND_PTS_KO={ro32:2,ro16:4,qf:8,sf:16,final:32};
 const KO_ROUNDS=['ro32','ro16','qf','sf','final'];
 const KO_IDS_BY_ROUND={
   ro32:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15'],
@@ -1924,7 +1946,7 @@ function renderSim(){
   if(!players.length){ el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:3rem">No players yet.</div>'; return; }
 
   const koResults=state.koResults||{};
-  const roundPts={ro32:4,ro16:8,qf:16,sf:32,final:64};
+  const roundPts={ro32:2,ro16:4,qf:8,sf:16,final:32};
   const roundIds={
     ro32:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15'],
     ro16:['r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7'],
