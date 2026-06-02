@@ -412,6 +412,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <!-- STATS PAGE -->
 <div class="page" id="page-stats">
   <div class="section-title">Pick Stats</div>
+  <div style="display:flex;gap:4px;margin-bottom:1.2rem;border-bottom:1px solid var(--border);padding-bottom:0">
+    <button class="stats-tab-btn active" onclick="showStatsTab('group')" id="stab-group" style="background:none;border:none;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--gold);cursor:pointer;border-bottom:2px solid var(--gold);margin-bottom:-1px">Group Stage</button>
+    <button class="stats-tab-btn" onclick="showStatsTab('ko')" id="stab-ko" style="background:none;border:none;padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px">Knockout</button>
+  </div>
   <div id="stats-content"></div>
 </div>
 
@@ -936,19 +940,30 @@ function renderPicks(){
       const advanced1=table[0]?.name===team, advanced2=table[1]?.name===team;
       const advanced3=advancingThirds.includes(team)&&table[2]?.name===team;
       const teamAdvanced=advanced1||advanced2||advanced3;
-      let statusClass='pick-pending', pts='', icon='';
+      let rowColor='', checks='', ptsStr='';
       if(allPlayed){
-        let earned=0;
-        if(teamAdvanced){ earned++; if(actualPos===rank) earned++; }
-        statusClass=teamAdvanced?'pick-correct':'pick-wrong';
-        icon=teamAdvanced?' ✓':' ✗';
-        pts=`<span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:10px;${earned>0?'color:var(--green)':'color:var(--text-dim)'}">${earned}/2</span>`;
+        const posCorrect=teamAdvanced&&(actualPos===rank);
+        const advOnly=teamAdvanced&&(actualPos!==rank);
+        if(posCorrect){
+          rowColor='color:var(--green)';
+          checks='<span style="color:var(--green);font-size:10px">✓✓</span>';
+          ptsStr='<span style="font-size:10px;color:var(--green);margin-left:auto;font-weight:600">2/2</span>';
+        } else if(advOnly){
+          rowColor='color:var(--gold)';
+          checks='<span style="font-size:10px"><span style="color:var(--green)">✓</span><span style="color:#e74c3c">✗</span></span>';
+          ptsStr='<span style="font-size:10px;color:var(--gold);margin-left:auto;font-weight:600">1/2</span>';
+        } else {
+          rowColor='color:#e74c3c';
+          checks='<span style="color:#e74c3c;font-size:10px">✗✗</span>';
+          ptsStr='<span style="font-size:10px;color:var(--text-dim);margin-left:auto">0/2</span>';
+        }
       }
       html+=`<div class="picks-group-row">
         <span style="color:${col};font-size:10px;width:22px">${label}</span>
         ${fi(team,14)}
-        <span class="${statusClass}">${abbr(team)}${icon}</span>
-        ${pts}
+        <span style="font-size:12px;${rowColor}">${abbr(team)}</span>
+        ${checks}
+        ${ptsStr}
       </div>`;
     });
     html+=`</div>`;
@@ -1357,10 +1372,26 @@ function importPlayerRow(name, row){
 
 
 // ─── RENDER STATS ─────────────────────────────────────────────
+let statsTab='group';
+
+function showStatsTab(tab){
+  statsTab=tab;
+  document.getElementById('stab-group').style.color=tab==='group'?'var(--gold)':'var(--text-muted)';
+  document.getElementById('stab-group').style.borderBottomColor=tab==='group'?'var(--gold)':'transparent';
+  document.getElementById('stab-ko').style.color=tab==='ko'?'var(--gold)':'var(--text-muted)';
+  document.getElementById('stab-ko').style.borderBottomColor=tab==='ko'?'var(--gold)':'transparent';
+  renderStats();
+}
+
 function renderStats(){
   const el=document.getElementById('stats-content');
   const players=Object.keys(state.players);
   if(!players.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:3rem">No players yet.</div>';return;}
+  if(statsTab==='group') renderGroupStats(el,players);
+  else renderKOStats(el,players);
+}
+
+function renderGroupStats(el,players){
   const n=players.length;
   let html='<div style="display:flex;gap:16px;margin-bottom:1rem;font-size:12px;color:var(--text-muted)">'
     +'<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--gold);margin-right:4px"></span>1st</span>'
@@ -1400,6 +1431,87 @@ function renderStats(){
     html+=`</div>`;
   });
   el.innerHTML=html;
+}
+
+function renderKOStats(el,players){
+  const n=players.length;
+  const hasKoPicks=Object.values(state.koPicks||{}).some(p=>Object.keys(p).length>0);
+
+  if(!hasKoPicks){
+    el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:3rem">No KO picks loaded yet.</div>';
+    return;
+  }
+
+  // KO round definitions — for each round, which match IDs feed into it
+  // "Picked to advance to X" means they picked that team to WIN a match in that round
+  const KO_STAT_ROUNDS=[
+    {label:'Champion',      sub:'% picked to win it all',         ids:['final-0']},
+    {label:'Final',         sub:'% picked to reach the Final',    ids:['sf-0','sf-1']},
+    {label:'Semifinals',    sub:'% picked to reach the Semis',    ids:['qf-0','qf-1','qf-2','qf-3']},
+    {label:'Quarterfinals', sub:'% picked to reach the QFs',      ids:['r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7']},
+    {label:'Round of 16',   sub:'% picked to reach Ro16',         ids:['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15']},
+  ];
+
+  // Build sub-tabs for KO rounds
+  let koSubTab=el.dataset.koSubTab||'Champion';
+
+  // Count picks per team per round
+  function getTeamCounts(ids){
+    const counts={};
+    players.forEach(pname=>{
+      const kp=state.koPicks[pname]||{};
+      ids.forEach(id=>{
+        const pick=kp[id];
+        if(pick){
+          if(!counts[pick]) counts[pick]={team:pick,count:0};
+          counts[pick].count++;
+        }
+      });
+    });
+    return Object.values(counts).sort((a,b)=>b.count-a.count||a.team.localeCompare(b.team));
+  }
+
+  // Sub-tab HTML
+  let html=`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:1rem;border-bottom:1px solid var(--border);padding-bottom:0">`;
+  KO_STAT_ROUNDS.forEach(({label})=>{
+    const active=koSubTab===label;
+    html+=`<button onclick="setKoStatTab(this,'${label}')" style="background:none;border:none;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;margin-bottom:-1px;
+      color:${active?'var(--gold)':'var(--text-muted)'};border-bottom:2px solid ${active?'var(--gold)':'transparent'}">${label}</button>`;
+  });
+  html+=`</div>`;
+
+  const round=KO_STAT_ROUNDS.find(r=>r.label===koSubTab)||KO_STAT_ROUNDS[0];
+  const teams=getTeamCounts(round.ids);
+  const maxCount=teams[0]?.count||1;
+
+  html+=`<div style="font-size:11px;color:var(--text-muted);margin-bottom:1rem">${round.sub} · ${n} player${n!==1?'s':''}</div>`;
+  html+=`<div class="stat-group">`;
+
+  if(!teams.length){
+    html+=`<div style="text-align:center;color:var(--text-dim);padding:1rem;font-size:12px">No picks yet for this round.</div>`;
+  } else {
+    teams.forEach(({team,count})=>{
+      const pct=Math.round(count/n*100);
+      const barW=Math.round(count/maxCount*100);
+      html+=`<div class="stat-team-row">
+        ${fi(team,16)}<span style="flex:0 0 110px;font-size:12px;font-family:'DM Mono',monospace;font-weight:500">${abbr(team)}</span>
+        <div style="flex:1;display:flex;align-items:center;gap:8px">
+          <div class="stat-bar-wrap" style="flex:1"><div class="stat-bar" style="width:${barW}%;background:var(--gold);opacity:0.7"></div></div>
+          <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--gold);min-width:38px;text-align:right;font-weight:500">${pct}%</span>
+          <span style="font-size:11px;color:var(--text-dim);min-width:28px;text-align:right">${count}/${n}</span>
+        </div>
+      </div>`;
+    });
+  }
+  html+=`</div>`;
+  el.innerHTML=html;
+  el.dataset.koSubTab=koSubTab;
+}
+
+function setKoStatTab(btn,label){
+  const el=document.getElementById('stats-content');
+  el.dataset.koSubTab=label;
+  renderStats();
 }
 
 // ─── LOAD KO PICKS FROM SHEET ─────────────────────────────────
@@ -1938,6 +2050,10 @@ function resetSim(){ simPicks={}; renderSim(); }
 function renderSim(){
   const el=document.getElementById('sim-content');
   if(!el) return;
+  if(!state.settings?.koPicksPublic&&!isAdmin){
+    el.innerHTML=`<div style="text-align:center;color:var(--text-muted);padding:3rem"><div style="font-size:32px;margin-bottom:12px">&#26917;</div><p style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px">Check back once the knockout stage has begun.</p><p style="font-size:12px">Simulation will be available after KO picks are locked.</p></div>`;
+    return;
+  }
   if(!state.resolvedTeams||!Object.keys(state.resolvedTeams).length){
     el.innerHTML=`<div style="text-align:center;color:var(--text-muted);padding:3rem"><div style="font-size:32px;margin-bottom:12px">&#9203;</div><p>Available once bracket slots are set in Admin.</p></div>`;
     return;
@@ -2009,8 +2125,7 @@ function renderSim(){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--gold)">Projected Standings</div>
       <div style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">${simCount}/${totalPending} simulated</div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">`;
+    </div>`;
   simRanked.forEach((name,i)=>{
     const rr=realRanked.indexOf(name);
     const diff=rr-i;
@@ -2018,14 +2133,14 @@ function renderSim(){
     const sc=simScores[name];
     const elim=i>=3&&sc<thirdScore;
     const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
-    lbHtml+=`<div style="background:var(--surface2);border-radius:var(--radius);padding:8px 10px;display:flex;align-items:center;gap:6px;${i<3?'border:1px solid rgba(201,168,76,0.2)':'border:1px solid var(--border)'}">
-      <span style="font-size:14px">${medal||`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${i+1}</span>`}</span>
-      <span style="flex:1;font-size:12px;font-weight:${i<3?'500':'400'};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${name.split(' ')[0]}</span>
+    lbHtml+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(201,168,76,0.06)">
+      <span style="min-width:24px;text-align:center">${medal||`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${i+1}</span>`}</span>
+      <span style="flex:1;font-size:13px;font-weight:${i<3?'500':'400'}">${name}</span>
       ${delta}
-      <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:500;${elim?'color:#e74c3c':'color:var(--gold)'}">${sc}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:14px;font-weight:500;${elim?'color:#e74c3c':'color:var(--gold)'}">${sc}</span>
     </div>`;
   });
-  lbHtml+=`</div></div>`;
+  lbHtml+=`</div>`;
 
   // ── BRACKET (full width, absolute positioned) ─────────────────
   const MATCH_W=130, MATCH_H=46, COL_W=148, HEADER_H=40;
