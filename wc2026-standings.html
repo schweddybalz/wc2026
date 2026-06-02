@@ -5,7 +5,8 @@
 <link rel="icon" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/us.svg">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>World Cup 2026 Pool — USA Edition</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
 <style>
 :root{
   --gold:#C9A84C;--gold-light:#E8C96A;
@@ -22,8 +23,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1.2rem;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:100;}
 .logo{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--gold);}
 .logo span{color:var(--text-muted);font-size:12px;font-family:'DM Sans',sans-serif;font-weight:300;letter-spacing:0;margin-left:8px;}
-.nav{display:flex;gap:2px;}
-.nav-btn{background:none;border:none;padding:6px 10px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;transition:all .15s;}
+.nav{display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:calc(100vw - 120px);}
+.nav-btn{background:none;border:none;padding:6px 10px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;}
 .nav-btn:hover{color:var(--text);background:var(--surface2);}
 .nav-btn.active{color:var(--gold);background:rgba(201,168,76,0.08);}
 
@@ -171,6 +172,21 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .ko-round-lbl{font-size:10px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;margin-top:8px;}
 
 /* BRACKET DISPLAY */
+
+@media(max-width:600px){
+  .main{padding:1rem .7rem 3rem;}
+  .header{padding:0 .8rem;}
+  .logo{font-size:15px;letter-spacing:1px;}
+  .logo span{font-size:11px;}
+  /* Pool table - hide QF SF F on small screens, keep Grp Ro32 Ro16 Total Max */
+  .pool-col-qf,.pool-col-sf,.pool-col-f{display:none;}
+  .pool-table th,.pool-table td{padding:8px 5px;font-size:11px;}
+  .pts-total{font-size:13px;}
+  /* Group tables grid */
+  .groups-grid{grid-template-columns:1fr;}
+  /* Picks grid */
+  .picks-grid{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
@@ -226,9 +242,9 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       <th title="Group stage points">Grp</th>
       <th title="Round of 32 points">Ro32</th>
       <th title="Round of 16 points">Ro16</th>
-      <th title="Quarterfinal points">QF</th>
-      <th title="Semifinal points">SF</th>
-      <th title="Final points">F</th>
+      <th title="Quarterfinal points" class="pool-col-qf">QF</th>
+      <th title="Semifinal points" class="pool-col-sf">SF</th>
+      <th title="Final points" class="pool-col-f">F</th>
       <th title="Their champion pick">&#127942;</th>
       <th title="Total points">Total</th>
       <th title="Maximum possible points remaining">Max</th>
@@ -830,9 +846,9 @@ function renderPool(){
       <td class="pts-round ${row.groupTotal?'has':''}">${row.groupTotal}</td>
       <td class="pts-round ${row.ro32?'has':''}">${row.ro32||'—'}</td>
       <td class="pts-round ${row.ro16?'has':''}">${row.ro16||'—'}</td>
-      <td class="pts-round ${row.qf?'has':''}">${row.qf||'—'}</td>
-      <td class="pts-round ${row.sf?'has':''}">${row.sf||'—'}</td>
-      <td class="pts-round ${row.final?'has':''}">${row.final||'—'}</td>
+      <td class="pts-round pool-col-qf ${row.qf?'has':''}">${row.qf||'—'}</td>
+      <td class="pts-round pool-col-sf ${row.sf?'has':''}">${row.sf||'—'}</td>
+      <td class="pts-round pool-col-f ${row.final?'has':''}">${row.final||'—'}</td>
       <td style="text-align:right">${champHtml}</td>
       <td class="pts-total">${row.total}</td>
       <td class="max-pts" ${maxColor}>${row.max}</td>

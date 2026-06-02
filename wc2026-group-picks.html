@@ -5,7 +5,8 @@
 <link rel="icon" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/flags/4x3/us.svg">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>World Cup 2026 Pool — USA Edition</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"></noscript>
 <style>
 :root{
   --gold:#C9A84C;--gold-light:#E8C96A;
@@ -208,7 +209,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
         <div style="font-size:11px;color:var(--text-dim);margin-top:8px">Tied places split the combined payout equally. No tiebreakers.</div>
       </div>
 
-      <button class="btn btn-primary" onclick="goStep('payment')" style="width:100%">I understand — Enter My Details &rarr;</button>
+      <button class="btn btn-primary" onclick="goStep('identity')" style="width:100%">I understand — Enter My Details &rarr;</button>
     </div>
   </div>
 
@@ -252,7 +253,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
     <div class="groups-grid" id="groups-grid"></div>
     <div class="actions" style="justify-content:space-between;margin-top:1rem">
-      <button class="btn btn-ghost" onclick="goStep('payment')">&#8592; Back</button>
+      <button class="btn btn-ghost" onclick="goStep('rules')">&#8592; Back</button>
       <button class="btn btn-primary" id="btn-review" onclick="goReview()" disabled style="opacity:0.4;cursor:not-allowed">Review Picks &rarr;</button>
     </div>
   </div>
