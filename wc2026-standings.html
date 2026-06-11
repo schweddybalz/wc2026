@@ -822,33 +822,58 @@ function calcPoolScore(playerName){
   const player=state.players[playerName];
   if(!player||!player.groupPicks) return {advance:0,position:0,groupTotal:0,ro32:0,ro16:0,qf:0,sf:0,final:0,koTotal:0,total:0};
   let advance=0, position=0;
-  const thirds=getAllThirds();
-  const advancingThirds=thirds.slice(0,8).map(t=>t.name);
+
+  // Determine advancing thirds — from sheet groupResults if available, else from match results
+  const sheetGroupResults = state.groupResults||{};
+  const hasSheetResults = Object.keys(sheetGroupResults).some(g=>sheetGroupResults[g].first);
+
+  let advancingThirds=[];
+  if(hasSheetResults){
+    // Use sheet results for thirds ranking
+    const thirds=GKEYS
+      .filter(g=>sheetGroupResults[g]?.third)
+      .map(g=>({name:fromAbbr(sheetGroupResults[g].third),group:g}));
+    advancingThirds=thirds.map(t=>t.name);
+  } else {
+    const thirds=getAllThirds();
+    advancingThirds=thirds.slice(0,8).map(t=>t.name);
+  }
 
   GKEYS.forEach(letter=>{
-    const table=calcGroupTable(letter);
     const picks=player.groupPicks[letter]||{};
+    const gr=sheetGroupResults[letter];
 
-    // Only score if at least one match in this group has been played
-    const matchesPlayed=MATCHES.filter(m=>m.g===letter).some(m=>{
-      const r=state.results[m.id];
-      return r&&r.hg!==''&&r.hg!==undefined&&r.ag!==''&&r.ag!==undefined&&!isNaN(parseInt(r.hg))&&!isNaN(parseInt(r.ag));
-    });
-    if(!matchesPlayed) return;
-
-    [1,2,3].forEach(rank=>{
-      const pickedTeam=picks[rank];
-      if(!pickedTeam) return;
-      const advanced1=table[0]?.name===pickedTeam;
-      const advanced2=table[1]?.name===pickedTeam;
-      const advanced3=advancingThirds.includes(pickedTeam)&&table[2]?.name===pickedTeam;
-      // For 1st/2nd: score once group is complete (position is settled)
-      // For partial results: award 1st/2nd advance points as they come in
-      if(advanced1||advanced2||advanced3){
-        advance++;
-        if(table.findIndex(t=>t.name===pickedTeam)+1===rank) position++;
-      }
-    });
+    if(hasSheetResults&&gr&&gr.first){
+      // Use sheet group results directly
+      const first=fromAbbr(gr.first), second=fromAbbr(gr.second), third=fromAbbr(gr.third);
+      [1,2,3].forEach(rank=>{
+        const pickedTeam=picks[rank]; if(!pickedTeam) return;
+        const advanced=pickedTeam===first||pickedTeam===second||(third&&advancingThirds.includes(pickedTeam)&&pickedTeam===third);
+        if(advanced){
+          advance++;
+          const actualPos=pickedTeam===first?1:pickedTeam===second?2:3;
+          if(actualPos===rank) position++;
+        }
+      });
+    } else {
+      // Fall back to match-level results
+      const table=calcGroupTable(letter);
+      const matchesPlayed=MATCHES.filter(m=>m.g===letter).some(m=>{
+        const r=state.results[m.id];
+        return r&&r.hg!==''&&r.hg!==undefined&&r.ag!==''&&r.ag!==undefined&&!isNaN(parseInt(r.hg))&&!isNaN(parseInt(r.ag));
+      });
+      if(!matchesPlayed) return;
+      [1,2,3].forEach(rank=>{
+        const pickedTeam=picks[rank]; if(!pickedTeam) return;
+        const advanced1=table[0]?.name===pickedTeam;
+        const advanced2=table[1]?.name===pickedTeam;
+        const advanced3=advancingThirds.includes(pickedTeam)&&table[2]?.name===pickedTeam;
+        if(advanced1||advanced2||advanced3){
+          advance++;
+          if(table.findIndex(t=>t.name===pickedTeam)+1===rank) position++;
+        }
+      });
+    }
   });
 
   const ro32s=calcRoundKOScore(playerName,'ro32');
@@ -1263,7 +1288,7 @@ function setResult(matchId, field, value){
   if(!state.results[matchId]) state.results[matchId]={hg:'',ag:'',hfp:0,afp:0};
   state.results[matchId][field]=value;
   saveState();
-  // Live update group tables and pool
+  pushMatchScore(matchId);
   if(document.getElementById('page-groups').classList.contains('active')) renderGroups();
   if(document.getElementById('page-pool').classList.contains('active')) renderPool();
 }
@@ -1666,6 +1691,7 @@ function resetGroupResults(){
   if(!confirm('Reset all group match results? This cannot be undone.')) return;
   state.results={};
   saveState();
+  pushMatchScores();
   renderAdmin();
   renderGroups();
   renderPool();
@@ -1687,6 +1713,7 @@ function resetBracket(){
   state.resolvedTeams={};
   state.koResults={};
   saveState();
+  pushBracketSlots();
   renderAdmin();
   renderBracket();
   showToast('Bracket reset','success');
@@ -1705,6 +1732,7 @@ function exportBracket(){
 function setSlot(slot,team){
   state.resolvedTeams[slot]=team;
   saveState();
+  pushBracketSlot(slot,team);
   renderBracket();
   renderKoResultEntries();
 }
@@ -2100,6 +2128,24 @@ function renderBracket(){
   el.innerHTML=html;
 }
 
+
+
+// ─── PUSH TO SHEET ────────────────────────────────────────────
+function pushToSheet(payload){
+  const url = AUTO_SHEET_URL || state.sheetUrl;
+  if(!url) return;
+  fetch(url, {method:'POST', mode:'no-cors', body:JSON.stringify(payload)});
+}
+
+function pushMatchScore(matchId){
+  const r=state.results[matchId];
+  if(!r) return;
+  pushToSheet({sheet:'Match Score', matchId, hg:r.hg||'', ag:r.ag||'', hfp:r.hfp||0, afp:r.afp||0});
+}
+
+function pushBracketSlot(slot, team){
+  pushToSheet({sheet:'Bracket Slot', slot, team:team||''});
+}
 
 // ─── SIMULATE ─────────────────────────────────────────────────
 let simPicks={};
@@ -2502,9 +2548,14 @@ async function autoLoadFromSheet(){
     return;
   }
   try{
-    const res = await fetch(url);
-    const text = await res.text();
+    console.log('Auto-loading from sheet:', url);
+    const res = await fetch(url, {redirect:'follow'});
+    let text = await res.text();
+    // Strip any HTML wrapper Apps Script sometimes adds
+    const jsonStart=text.indexOf('{'); const jsonEnd=text.lastIndexOf('}');
+    if(jsonStart>=0&&jsonEnd>=0) text=text.slice(jsonStart,jsonEnd+1);
     const data = JSON.parse(text);
+    console.log('Sheet data received:', Object.keys(data), 'groupPicks:', (data.groupPicks||data.picks||[]).length, 'players');
     if(data.status !== 'ok') throw new Error(data.message||'error');
 
     const rows = data.groupPicks || data.picks || [];
@@ -2542,9 +2593,53 @@ async function autoLoadFromSheet(){
       });
     }
 
+    // Load match scores for group tables
+    if(data.matchScores&&Object.keys(data.matchScores||{}).length){
+      state.results={};
+      Object.entries(data.matchScores).forEach(([id,r])=>{
+        state.results[id]={hg:r.hg||'',ag:r.ag||'',hfp:r.hfp||0,afp:r.afp||0};
+      });
+    }
+
+    // Load bracket slots
+    if(data.resolvedTeams&&Object.keys(data.resolvedTeams||{}).length){
+      state.resolvedTeams={};
+      Object.entries(data.resolvedTeams).forEach(([slot,team])=>{
+        state.resolvedTeams[slot]=team;
+      });
+    }
+
+    // Load group results
+    if(data.groupResults){
+      // groupResults: { A: {first:'MEX', second:'RSA', third:'KOR'}, ... }
+      // Map to state.results match format
+      GKEYS.forEach(letter=>{
+        const gr = data.groupResults[letter];
+        if(!gr) return;
+        // Store in state.groupResults for scoring — don't overwrite match-level results
+        if(!state.groupResults) state.groupResults={};
+        state.groupResults[letter]={
+          first: fromAbbr(gr.first||''),
+          second: fromAbbr(gr.second||''),
+          third: fromAbbr(gr.third||''),
+        };
+      });
+    }
+
+    // Load KO results
+    if(data.koResults&&Object.keys(data.koResults).length){
+      state.koResults={};
+      Object.entries(data.koResults).forEach(([id,winner])=>{
+        state.koResults[id]=fromAbbr(winner);
+      });
+    }
+
     // Don't save to localStorage — always fetch fresh from sheet
     try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
-    try{ renderGroups(); }catch(e){}
+    try{ renderGroups(); }catch(e){ console.error('renderGroups error:',e); }
+    try{ renderBracket(); }catch(e){}
+    try{ renderKoResultEntries(); }catch(e){}
+    try{ renderBracket(); }catch(e){}
   }catch(err){
     console.error('Auto-load failed:',err);
     try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
