@@ -2472,9 +2472,12 @@ function renderPayout(){
 }
 
 // ─── INIT ────────────────────────────────────────────────────
+const AUTO_SHEET_URL = 'https://script.google.com/macros/s/AKfycby8eDlogjUJI9ghzvOCSGZSXpnwK6v_VuNE5pZo8pzbZDbI9H-Qig8tLlCedxW2oD7utw/exec';
+
 function init(){
   loadState();
-  try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
+  // Always auto-load from sheet so everyone sees current data
+  autoLoadFromSheet();
   document.getElementById('admin-pw').addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
 
   // KO results click delegation — set once on document, never re-added
@@ -2491,7 +2494,62 @@ function init(){
     m.addEventListener('click',e=>{ if(e.target===m) m.classList.add('hidden'); });
   });
 }
-init();
+
+async function autoLoadFromSheet(){
+  const url = AUTO_SHEET_URL || state.sheetUrl;
+  if(!url) {
+    try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
+    return;
+  }
+  try{
+    const res = await fetch(url);
+    const text = await res.text();
+    const data = JSON.parse(text);
+    if(data.status !== 'ok') throw new Error(data.message||'error');
+
+    const rows = data.groupPicks || data.picks || [];
+    if(rows.length){
+      const byEmail={};
+      rows.forEach(row=>{
+        const email=(row['Email']||'').toLowerCase().trim();
+        const name=(row['Name']||'').trim();
+        if(!email||!name) return;
+        if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
+          byEmail[email]={name,row,ts:row['Timestamp']};
+        }
+      });
+      // Clear players and reload from sheet
+      state.players={};
+      Object.values(byEmail).forEach(({name,row})=>importPlayerRow(name,row));
+    }
+
+    if(data.koPicks&&data.koPicks.length){
+      const byEmail={};
+      data.koPicks.forEach(row=>{
+        const email=(row['Email']||'').toLowerCase().trim();
+        const name=(row['Name']||'').trim();
+        if(!email||!name) return;
+        const playerName=Object.keys(state.players).find(p=>state.players[p].email===email)||name;
+        if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
+          byEmail[email]={name:playerName,row,ts:row['Timestamp']};
+        }
+      });
+      Object.values(byEmail).forEach(({name,row})=>{
+        const koPicks={};
+        const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
+        KO_IDS.forEach(id=>{ if(row[id]) koPicks[id]=fromAbbr(row[id]); });
+        state.koPicks[name]=koPicks;
+      });
+    }
+
+    // Don't save to localStorage — always fetch fresh from sheet
+    try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
+    try{ renderGroups(); }catch(e){}
+  }catch(err){
+    console.error('Auto-load failed:',err);
+    try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
+  }
+}
 </script>
 </body>
 </html>
