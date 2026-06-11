@@ -605,7 +605,10 @@ let state={
 function loadState(){
   try{ const r=localStorage.getItem('wc2026-standings-v2'); if(r) state=JSON.parse(r); }catch{}
   state.results=state.results||{};
-  state.players=state.players||{};
+  state.players={};  // always cleared — players come from hardcoded picks, not localStorage
+  state.koPicks=state.koPicks||{};
+  state.koResults=state.koResults||{};
+  state.resolvedTeams=state.resolvedTeams||{};
   state.settings=state.settings||{groupPicksPublic:false,koPicksPublic:false};
   state.payout=state.payout||{buyIn:50,places:[{label:'1st Place',pct:50},{label:'2nd Place',pct:30},{label:'3rd Place',pct:20}]};
 }
@@ -2522,8 +2525,9 @@ const AUTO_SHEET_URL = 'https://script.google.com/macros/s/AKfycby8eDlogjUJI9ghz
 
 function init(){
   loadState();
-  // Always auto-load from sheet so everyone sees current data
-  autoLoadFromSheet();
+  autoLoadFromSheet(); // populates state.players from hardcoded data
+  // Verify players loaded, fallback log
+  console.log('Players after load:', Object.keys(state.players).length);
   document.getElementById('admin-pw').addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
 
   // KO results click delegation — set once on document, never re-added
@@ -2541,109 +2545,79 @@ function init(){
   });
 }
 
-async function autoLoadFromSheet(){
-  const url = AUTO_SHEET_URL || state.sheetUrl;
-  if(!url) {
-    try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
-    return;
+function autoLoadFromSheet(){
+  const data = {"groupPicks":[{"Timestamp":"2026-06-02T15:06:57.092Z","Name":"Steven Paul","Email":"scpaul@gmail.com","1A":"MEX","2A":"KOR","3A":"CZE","1B":"SUI","2B":"CAN","3B":"BIH","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"PAR","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"EGY","3G":"","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":""},{"Timestamp":"2026-06-03T02:34:34.016Z","Name":"Joshua Colvin","Email":"joshuamcolvin92@gmail.com","1A":"KOR","2A":"MEX","3A":"","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"","1D":"AUS","2D":"USA","3D":"PAR","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"TUN","1G":"BEL","2G":"EGY","3G":"IRN","1H":"ESP","2H":"URU","3H":"KSA","1I":"FRA","2I":"SEN","3I":"NOR","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":"PAN"},{"Timestamp":"2026-06-03T23:37:49.314Z","Name":"Kevin Pichelman","Email":"kevin@pichelman.com","1A":"MEX","2A":"RSA","3A":"CZE","1B":"CAN","2B":"SUI","3B":"QAT","1C":"BRA","2C":"SCO","3C":"MAR","1D":"USA","2D":"AUS","3D":"TUR","1E":"GER","2E":"ECU","3E":"","1F":"SWE","2F":"NED","3F":"JPN","1G":"BEL","2G":"NZL","3G":"EGY","1H":"ESP","2H":"URU","3H":"KSA","1I":"FRA","2I":"NOR","3I":"","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":"PAN"},{"Timestamp":"2026-06-08T22:43:31.060Z","Name":"Sean Paul","Email":"sgpaul@gmail.com","1A":"KOR","2A":"CZE","3A":"MEX","1B":"CAN","2B":"SUI","3B":"BIH","1C":"BRA","2C":"MAR","3C":"SCO","1D":"TUR","2D":"USA","3D":"PAR","1E":"GER","2E":"CIV","3E":"ECU","1F":"JPN","2F":"SWE","3F":"","1G":"BEL","2G":"EGY","3G":"","1H":"ESP","2H":"KSA","3H":"URU","1I":"NOR","2I":"FRA","3I":"SEN","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"","1L":"CRO","2L":"PAN","3L":"ENG"},{"Timestamp":"2026-06-09T16:58:53.275Z","Name":"Tudd Barron","Email":"tbarron14@gmail.com","1A":"MEX","2A":"KOR","3A":"RSA","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"AUS","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"","1G":"BEL","2G":"EGY","3G":"","1H":"ESP","2H":"URU","3H":"KSA","1I":"FRA","2I":"SEN","3I":"NOR","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":"GHA"},{"Timestamp":"2026-06-09T21:49:40.700Z","Name":"Sanel Subasic","Email":"sanelsubasic@gmail.com","1A":"MEX","2A":"KOR","3A":"RSA","1B":"SUI","2B":"BIH","3B":"CAN","1C":"BRA","2C":"MAR","3C":"SCO","1D":"AUS","2D":"USA","3D":"TUR","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"SWE","3F":"JPN","1G":"BEL","2G":"EGY","3G":"NZL","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":"GHA"},{"Timestamp":"2026-06-10T02:29:13.557Z","Name":"Colin Forbes","Email":"forbsie99@gmail.com","1A":"MEX","2A":"KOR","3A":"CZE","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"AUS","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"IRN","3G":"EGY","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":"PAN"},{"Timestamp":"2026-06-10T14:13:45.937Z","Name":"Ian Sears","Email":"ian.t.sears@gmail.com","1A":"MEX","2A":"CZE","3A":"","1B":"SUI","2B":"CAN","3B":"BIH","1C":"BRA","2C":"MAR","3C":"SCO","1D":"TUR","2D":"USA","3D":"PAR","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"SWE","3F":"JPN","1G":"BEL","2G":"EGY","3G":"","1H":"ESP","2H":"URU","3H":"CPV","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"COD","1L":"ENG","2L":"CRO","3L":""},{"Timestamp":"2026-06-10T17:17:19.334Z","Name":"Nick Underwood","Email":"theastronick@gmail.com","1A":"MEX","2A":"KOR","3A":"","1B":"SUI","2B":"CAN","3B":"QAT","1C":"BRA","2C":"MAR","3C":"","1D":"USA","2D":"TUR","3D":"AUS","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"","1G":"BEL","2G":"IRN","3G":"EGY","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"UZB","1L":"ENG","2L":"CRO","3L":"PAN"},{"Timestamp":"2026-06-10T17:36:28.328Z","Name":"Mike LaRue","Email":"gm.larue@gmail.com","1A":"MEX","2A":"KOR","3A":"CZE","1B":"SUI","2B":"CAN","3B":"BIH","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"PAR","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"EGY","3G":"IRN","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":""},{"Timestamp":"2026-06-10T23:23:54.388Z","Name":"Tom Brannigan","Email":"branniganth@gmail.com","1A":"MEX","2A":"KOR","3A":"CZE","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"EGY","3G":"IRN","1H":"ESP","2H":"URU","3H":"KSA","1I":"NOR","2I":"FRA","3I":"SEN","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":""},{"Timestamp":"2026-06-11T01:00:11.729Z","Name":"Nathan Dufresne","Email":"nathandufresne@me.com","1A":"MEX","2A":"KOR","3A":"","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"","1D":"USA","2D":"TUR","3D":"PAR","1E":"GER","2E":"CIV","3E":"ECU","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"EGY","3G":"IRN","1H":"ESP","2H":"URU","3H":"KSA","1I":"FRA","2I":"SEN","3I":"NOR","1J":"ARG","2J":"AUT","3J":"","1K":"POR","2K":"COL","3K":"COD","1L":"ENG","2L":"CRO","3L":"GHA"},{"Timestamp":"2026-06-11T02:16:16.094Z","Name":"Sean Enman","Email":"iisenman@gmail.com","1A":"MEX","2A":"CZE","3A":"KOR","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"SCO","1D":"TUR","2D":"USA","3D":"AUS","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"IRN","3G":"EGY","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"SEN","3I":"NOR","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":""},{"Timestamp":"2026-06-11T03:48:17.955Z","Name":"Dave Williams","Email":"williamsda@gmail.com","1A":"MEX","2A":"KOR","3A":"CZE","1B":"CAN","2B":"SUI","3B":"BIH","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"PAR","1E":"GER","2E":"CIV","3E":"ECU","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"EGY","3G":"","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"ALG","1K":"POR","2K":"COL","3K":"","1L":"ENG","2L":"CRO","3L":""},{"Timestamp":"2026-06-11T04:24:53.168Z","Name":"Jeremiah Cross","Email":"jeremiah.cross@gmail.com","1A":"MEX","2A":"KOR","3A":"CZE","1B":"SUI","2B":"CAN","3B":"","1C":"BRA","2C":"MAR","3C":"SCO","1D":"USA","2D":"TUR","3D":"PAR","1E":"GER","2E":"ECU","3E":"CIV","1F":"NED","2F":"JPN","3F":"SWE","1G":"BEL","2G":"IRN","3G":"","1H":"ESP","2H":"URU","3H":"","1I":"FRA","2I":"NOR","3I":"SEN","1J":"ARG","2J":"AUT","3J":"","1K":"COL","2K":"POR","3K":"UZB","1L":"ENG","2L":"CRO","3L":"PAN"}],"koPicks":[]};
+  loadPicksFromData(data);
+}
+
+function loadPicksFromData(data){
+  console.log('loadPicksFromData called, rows:', (data.groupPicks||data.picks||[]).length);
+  if(data.status && data.status !== 'ok') { console.error('Data error:', data.message); try{renderPool();}catch(e){} return; }
+
+  const rows = data.groupPicks || data.picks || [];
+  if(rows.length){
+    const byEmail={};
+    rows.forEach(row=>{
+      const email=(row['Email']||'').toLowerCase().trim();
+      const name=(row['Name']||'').trim();
+      if(!email||!name) return;
+      if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
+        byEmail[email]={name,row,ts:row['Timestamp']};
+      }
+    });
+    state.players={};
+    Object.values(byEmail).forEach(({name,row})=>importPlayerRow(name,row));
   }
-  try{
-    console.log('Auto-loading from sheet:', url);
-    const res = await fetch(url, {redirect:'follow'});
-    let text = await res.text();
-    // Strip any HTML wrapper Apps Script sometimes adds
-    const jsonStart=text.indexOf('{'); const jsonEnd=text.lastIndexOf('}');
-    if(jsonStart>=0&&jsonEnd>=0) text=text.slice(jsonStart,jsonEnd+1);
-    const data = JSON.parse(text);
-    console.log('Sheet data received:', Object.keys(data), 'groupPicks:', (data.groupPicks||data.picks||[]).length, 'players');
-    if(data.status !== 'ok') throw new Error(data.message||'error');
 
-    const rows = data.groupPicks || data.picks || [];
-    if(rows.length){
-      const byEmail={};
-      rows.forEach(row=>{
-        const email=(row['Email']||'').toLowerCase().trim();
-        const name=(row['Name']||'').trim();
-        if(!email||!name) return;
-        if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
-          byEmail[email]={name,row,ts:row['Timestamp']};
-        }
-      });
-      // Clear players and reload from sheet
-      state.players={};
-      Object.values(byEmail).forEach(({name,row})=>importPlayerRow(name,row));
-    }
-
-    if(data.koPicks&&data.koPicks.length){
-      const byEmail={};
-      data.koPicks.forEach(row=>{
-        const email=(row['Email']||'').toLowerCase().trim();
-        const name=(row['Name']||'').trim();
-        if(!email||!name) return;
-        const playerName=Object.keys(state.players).find(p=>state.players[p].email===email)||name;
-        if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
-          byEmail[email]={name:playerName,row,ts:row['Timestamp']};
-        }
-      });
-      Object.values(byEmail).forEach(({name,row})=>{
-        const koPicks={};
-        const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
-        KO_IDS.forEach(id=>{ if(row[id]) koPicks[id]=fromAbbr(row[id]); });
-        state.koPicks[name]=koPicks;
-      });
-    }
-
-    // Load match scores for group tables
-    if(data.matchScores&&Object.keys(data.matchScores||{}).length){
-      state.results={};
-      Object.entries(data.matchScores).forEach(([id,r])=>{
-        state.results[id]={hg:r.hg||'',ag:r.ag||'',hfp:r.hfp||0,afp:r.afp||0};
-      });
-    }
-
-    // Load bracket slots
-    if(data.resolvedTeams&&Object.keys(data.resolvedTeams||{}).length){
-      state.resolvedTeams={};
-      Object.entries(data.resolvedTeams).forEach(([slot,team])=>{
-        state.resolvedTeams[slot]=team;
-      });
-    }
-
-    // Load group results
-    if(data.groupResults){
-      // groupResults: { A: {first:'MEX', second:'RSA', third:'KOR'}, ... }
-      // Map to state.results match format
-      GKEYS.forEach(letter=>{
-        const gr = data.groupResults[letter];
-        if(!gr) return;
-        // Store in state.groupResults for scoring — don't overwrite match-level results
-        if(!state.groupResults) state.groupResults={};
-        state.groupResults[letter]={
-          first: fromAbbr(gr.first||''),
-          second: fromAbbr(gr.second||''),
-          third: fromAbbr(gr.third||''),
-        };
-      });
-    }
-
-    // Load KO results
-    if(data.koResults&&Object.keys(data.koResults).length){
-      state.koResults={};
-      Object.entries(data.koResults).forEach(([id,winner])=>{
-        state.koResults[id]=fromAbbr(winner);
-      });
-    }
-
-    // Don't save to localStorage — always fetch fresh from sheet
-    try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
-    try{ renderGroups(); }catch(e){ console.error('renderGroups error:',e); }
-    try{ renderBracket(); }catch(e){}
-    try{ renderKoResultEntries(); }catch(e){}
-    try{ renderBracket(); }catch(e){}
-  }catch(err){
-    console.error('Auto-load failed:',err);
-    try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
+  if(data.koPicks&&data.koPicks.length){
+    const byEmail={};
+    data.koPicks.forEach(row=>{
+      const email=(row['Email']||'').toLowerCase().trim();
+      const name=(row['Name']||'').trim();
+      if(!email||!name) return;
+      const playerName=Object.keys(state.players).find(p=>state.players[p].email===email)||name;
+      if(!byEmail[email]||new Date(row['Timestamp'])>new Date(byEmail[email].ts)){
+        byEmail[email]={name:playerName,row,ts:row['Timestamp']};
+      }
+    });
+    Object.values(byEmail).forEach(({name,row})=>{
+      const koPicks={};
+      const KO_IDS=['r32-0','r32-1','r32-2','r32-3','r32-4','r32-5','r32-6','r32-7','r32-8','r32-9','r32-10','r32-11','r32-12','r32-13','r32-14','r32-15','r16-0','r16-1','r16-2','r16-3','r16-4','r16-5','r16-6','r16-7','qf-0','qf-1','qf-2','qf-3','sf-0','sf-1','final-0'];
+      KO_IDS.forEach(id=>{ if(row[id]) koPicks[id]=fromAbbr(row[id]); });
+      state.koPicks[name]=koPicks;
+    });
   }
+
+  if(data.matchScores&&Object.keys(data.matchScores||{}).length){
+    state.results={};
+    Object.entries(data.matchScores).forEach(([id,r])=>{
+      state.results[id]={hg:r.hg||'',ag:r.ag||'',hfp:r.hfp||0,afp:r.afp||0};
+    });
+  }
+
+  if(data.resolvedTeams&&Object.keys(data.resolvedTeams||{}).length){
+    state.resolvedTeams={};
+    Object.entries(data.resolvedTeams).forEach(([slot,team])=>{ state.resolvedTeams[slot]=team; });
+  }
+
+  if(data.groupResults){
+    if(!state.groupResults) state.groupResults={};
+    GKEYS.forEach(letter=>{
+      const gr=data.groupResults[letter];
+      if(!gr) return;
+      state.groupResults[letter]={first:fromAbbr(gr.first||''),second:fromAbbr(gr.second||''),third:fromAbbr(gr.third||'')};
+    });
+  }
+
+  if(data.koResults&&Object.keys(data.koResults||{}).length){
+    state.koResults={};
+    Object.entries(data.koResults).forEach(([id,winner])=>{ state.koResults[id]=fromAbbr(winner); });
+  }
+
+  try{ renderPool(); }catch(e){ console.error('renderPool error:',e); }
+  try{ renderGroups(); }catch(e){}
+  try{ renderBracket(); }catch(e){}
+  try{ renderKoResultEntries(); }catch(e){}
 }
 </script>
 </body>
