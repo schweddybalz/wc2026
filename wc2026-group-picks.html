@@ -303,6 +303,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 
 <script>
 // ─── CONFIG — paste your Google Apps Script URL here ─────────
+const SUBMISSIONS_OPEN = true; // set to false to close submissions
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycby8eDlogjUJI9ghzvOCSGZSXpnwK6v_VuNE5pZo8pzbZDbI9H-Qig8tLlCedxW2oD7utw/exec';
 // ─────────────────────────────────────────────────────────────
 
@@ -525,6 +526,11 @@ function goReview(){
 
 // ─── SUBMIT TO GOOGLE SHEET ───────────────────────────────────
 async function submitPicks(){
+  if(!SUBMISSIONS_OPEN){
+    document.getElementById('submit-error').textContent='Submissions are now closed. Contact the commissioner if you need to make changes.';
+    document.getElementById('submit-error').style.display='block';
+    return;
+  }
   const btn=document.getElementById('btn-submit');
   const errEl=document.getElementById('submit-error');
   errEl.style.display='none';
