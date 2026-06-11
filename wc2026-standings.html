@@ -224,6 +224,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     <button class="nav-btn" onclick="showPage('groups')">Groups</button>
     <button class="nav-btn" onclick="showPage('bracket')">Bracket</button>
     <button class="nav-btn" onclick="showPage('picks')">Picks</button>
+    <button class="nav-btn" onclick="showPage('payout')">Payout</button>
     <button class="nav-btn" onclick="showPage('sim')">Simulate</button>
     <button class="nav-btn" onclick="showPage('stats')">Stats</button>
     <button class="nav-btn" onclick="showPage('admin')">Admin</button>
@@ -322,6 +323,19 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   <div id="admin-body" class="hidden">
 
     <div class="admin-section">
+      <h3>Prize Payout Settings</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Set the buy-in amount and prize breakdown. Percentages should add up to 100%.</p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--text-muted)">Buy-in ($)</label>
+        <input class="form-input" id="payout-buyin" type="number" min="1" style="width:90px;font-size:13px;padding:6px 10px" onchange="savePayoutSettings()">
+        <label style="font-size:12px;color:var(--text-muted);margin-left:8px">Places</label>
+        <input class="form-input" id="payout-places-count" type="number" min="1" max="10" style="width:60px;font-size:13px;padding:6px 10px" onchange="updatePayoutPlaces()">
+      </div>
+      <div id="payout-places-editor"></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text-dim)" id="payout-pct-total"></div>
+    </div>
+
+    <div class="admin-section">
       <h3>Picks Visibility</h3>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:.8rem">Control when picks are visible to everyone on the Picks tab.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -398,6 +412,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 </div>
 
 
+
+
+<!-- PAYOUT PAGE -->
+<div class="page" id="page-payout">
+  <div class="section-title">Prize Payout</div>
+  <div id="payout-content"></div>
+</div>
 
 <!-- SIMULATE PAGE -->
 <div class="page" id="page-sim">
@@ -585,6 +606,7 @@ let state={
   resolvedTeams:{},
   sheetUrl:'',
   settings:{groupPicksPublic:false,koPicksPublic:false},
+  payout:{buyIn:50,places:[{label:'1st Place',pct:50},{label:'2nd Place',pct:30},{label:'3rd Place',pct:20}]},
 };
 
 function loadState(){
@@ -592,6 +614,7 @@ function loadState(){
   state.results=state.results||{};
   state.players=state.players||{};
   state.settings=state.settings||{groupPicksPublic:false,koPicksPublic:false};
+  state.payout=state.payout||{buyIn:50,places:[{label:'1st Place',pct:50},{label:'2nd Place',pct:30},{label:'3rd Place',pct:20}]};
 }
 function saveState(){
   try{ localStorage.setItem('wc2026-standings-v2',JSON.stringify(state)); }
@@ -1026,13 +1049,14 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={pool:0,groups:1,bracket:2,picks:3,sim:4,stats:5,admin:6}[id];
+  const idx={pool:0,groups:1,bracket:2,picks:3,payout:4,sim:5,stats:6,admin:7}[id];
   if(idx!==undefined) document.querySelectorAll('.nav-btn')[idx].classList.add('active');
   if(id==='groups') try{renderGroups();}catch(e){console.error('renderGroups:',e);}
   if(id==='pool') try{renderPool();}catch(e){console.error('renderPool:',e);}
   if(id==='admin'&&isAdmin) try{renderAdmin();}catch(e){console.error('renderAdmin:',e);}
   if(id==='stats') try{renderStats();}catch(e){console.error('renderStats:',e);}
   if(id==='bracket') try{renderBracket();}catch(e){console.error('renderBracket:',e);}
+  if(id==='payout') try{renderPayout();}catch(e){console.error('renderPayout:',e);}
   if(id==='sim') try{renderSim();}catch(e){console.error('renderSim:',e);}
   if(id==='picks') try{renderPicks();}catch(e){console.error('renderPicks:',e);}
 }
@@ -1097,6 +1121,7 @@ function doAdminLogin(){
 function renderAdmin(){
   if(state.sheetUrl) document.getElementById('sheet-url-input').value=state.sheetUrl;
   updateVisibilityButtons();
+  renderPayoutAdmin();
   renderPlayerChips();
   renderPicksEditor();
   renderBracketSlots();
@@ -2261,6 +2286,156 @@ document.addEventListener('click',e=>{
   if(simPicks[id]===team) delete simPicks[id]; else simPicks[id]=team;
   renderSim();
 });
+
+
+// ─── PAYOUT ───────────────────────────────────────────────────
+function renderPayoutAdmin(){
+  const p=state.payout||{buyIn:50,places:[]};
+  const buyInEl=document.getElementById('payout-buyin');
+  const countEl=document.getElementById('payout-places-count');
+  if(buyInEl) buyInEl.value=p.buyIn||50;
+  if(countEl) countEl.value=p.places?.length||3;
+  renderPayoutPlacesEditor();
+}
+
+function renderPayoutPlacesEditor(){
+  const el=document.getElementById('payout-places-editor');
+  if(!el) return;
+  const places=state.payout?.places||[];
+  let html='<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;margin-bottom:4px">'
+    +'<span style="font-size:10px;color:var(--text-dim);font-family:monospace;text-transform:uppercase">Label</span>'
+    +'<span style="font-size:10px;color:var(--text-dim);font-family:monospace;text-transform:uppercase">% of pot</span>'
+    +'<span></span></div>';
+  places.forEach((place,i)=>{
+    html+=`<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px">
+      <input class="form-input" style="font-size:12px;padding:5px 8px" value="${place.label||''}" placeholder="e.g. 1st Place" onchange="updatePayoutPlace(${i},'label',this.value)">
+      <input class="form-input" style="font-size:12px;padding:5px 8px" value="${place.pct||''}" placeholder="%" type="number" min="0" max="100" onchange="updatePayoutPlace(${i},'pct',parseFloat(this.value)||0)">
+      <button class="btn btn-danger btn-sm" onclick="removePayoutPlace(${i})">✕</button>
+    </div>`;
+  });
+  html+=`<button class="btn btn-ghost btn-sm" onclick="addPayoutPlace()" style="margin-top:4px">+ Add Place</button>`;
+  el.innerHTML=html;
+  // Show total %
+  const total=places.reduce((s,p)=>s+(parseFloat(p.pct)||0),0);
+  const totalEl=document.getElementById('payout-pct-total');
+  if(totalEl) totalEl.innerHTML=`Total: <span style="color:${Math.abs(total-100)<0.01?'var(--green)':'#e74c3c'};font-weight:500">${total}%</span>${Math.abs(total-100)>0.01?' (should be 100%)':''}`;
+}
+
+function updatePayoutPlace(i,field,val){
+  if(!state.payout?.places) return;
+  state.payout.places[i][field]=val;
+  saveState();
+  renderPayoutPlacesEditor();
+  renderPayout();
+}
+
+function addPayoutPlace(){
+  if(!state.payout) state.payout={buyIn:50,places:[]};
+  state.payout.places.push({label:`Place ${state.payout.places.length+1}`,pct:0});
+  saveState();
+  renderPayoutPlacesEditor();
+  document.getElementById('payout-places-count').value=state.payout.places.length;
+}
+
+function removePayoutPlace(i){
+  state.payout.places.splice(i,1);
+  saveState();
+  renderPayoutPlacesEditor();
+  document.getElementById('payout-places-count').value=state.payout.places.length;
+  renderPayout();
+}
+
+function updatePayoutPlaces(){
+  const count=parseInt(document.getElementById('payout-places-count').value)||3;
+  const places=state.payout?.places||[];
+  const defaultLabels=['1st Place','2nd Place','3rd Place','4th Place','5th Place'];
+  while(places.length<count) places.push({label:defaultLabels[places.length]||`Place ${places.length+1}`,pct:0});
+  while(places.length>count) places.pop();
+  if(!state.payout) state.payout={buyIn:50,places};
+  else state.payout.places=places;
+  saveState();
+  renderPayoutPlacesEditor();
+  renderPayout();
+}
+
+function savePayoutSettings(){
+  const buyIn=parseFloat(document.getElementById('payout-buyin').value)||50;
+  if(!state.payout) state.payout={buyIn,places:[]};
+  else state.payout.buyIn=buyIn;
+  saveState();
+  renderPayout();
+}
+
+function renderPayout(){
+  const el=document.getElementById('payout-content');
+  if(!el) return;
+  const p=state.payout||{buyIn:50,places:[{label:'1st Place',pct:50},{label:'2nd Place',pct:30},{label:'3rd Place',pct:20}]};
+  const buyIn=p.buyIn||50;
+  const places=p.places||[];
+  const players=Object.keys(state.players);
+  const n=players.length;
+  const pot=buyIn*n;
+
+  // Header: pot info
+  let html=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1.2rem;display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;text-align:center">
+    <div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Buy-In</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--gold);line-height:1">$${buyIn}</div>
+    </div>
+    <div style="color:var(--text-dim);font-size:24px;font-weight:300">×</div>
+    <div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Players</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--text);line-height:1">${n}</div>
+    </div>
+    <div style="color:var(--text-dim);font-size:24px;font-weight:300">=</div>
+    <div>
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Total Pot</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--green);line-height:1">$${pot}</div>
+    </div>
+  </div>`;
+
+  // Place cards
+  const placeColors=['var(--gold)','#A8A8A8','#8B6914','#e74c3c','#9B59B6','#3498DB'];
+  html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:1.5rem">`;
+  places.forEach((place,i)=>{
+    const pct=parseFloat(place.pct)||0;
+    const prize=Math.round(pot*pct/100);
+    const color=placeColors[i]||'var(--text-muted)';
+    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem;text-align:center">
+      <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${place.label||'Place '+(i+1)}</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:${color};line-height:1;margin-bottom:2px">$${prize}</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:${color};line-height:1;opacity:0.5">${pct}%</div>
+    </div>`;
+  });
+  html+=`</div>`;
+
+  // Tied places note
+  html+=`<div style="font-size:12px;color:var(--text-dim);margin-bottom:1.5rem">Tied places split the combined payout equally. No tiebreakers.</div>`;
+
+  // Current standings with payouts
+  if(players.length){
+    const scores=players.map(name=>({name,...calcPoolScore(name)})).sort((a,b)=>b.total-a.total||b.groupTotal-a.groupTotal);
+    html+=`<div class="section-title" style="font-size:15px">Current Standings & Payouts</div>`;
+    html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">`;
+    let rank=1;
+    scores.forEach((row,i)=>{
+      if(i>0&&scores[i].total<scores[i-1].total) rank=i+1;
+      // Find if this rank gets a prize
+      const placeIdx=rank-1;
+      const prize=placeIdx<places.length?Math.round(pot*(parseFloat(places[placeIdx].pct)||0)/100):null;
+      const medal=['🥇','🥈','🥉'][rank-1]||rank;
+      html+=`<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(201,168,76,0.06)">
+        <span style="min-width:28px;text-align:center;font-size:${rank<=3?'16':'13'}px;${rank>3?'color:var(--text-dim);font-family:monospace':''}">${medal}</span>
+        <span style="flex:1;font-weight:${rank<=3?'500':'400'};font-size:13px">${row.name}</span>
+        <span style="font-family:monospace;font-size:13px;color:var(--gold)">${row.total} pts</span>
+        ${prize!==null?`<span style="font-family:monospace;font-size:14px;color:var(--green);font-weight:600;min-width:50px;text-align:right">$${prize}</span>`:'<span style="min-width:50px"></span>'}
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  el.innerHTML=html;
+}
 
 // ─── INIT ────────────────────────────────────────────────────
 function init(){
