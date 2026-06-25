@@ -811,6 +811,9 @@ function calcMaxPossible(playerName){
     });
   });
   groupMax=Math.min(groupMax,64);
+  if(playerName==='Kevin Pichelman'){
+    console.log('[DEBUG] Kevin groupMax after all groups:', groupMax);
+  }
 
   // ── Build eliminated set from koResults ───────────────────────
   const eliminated=new Set();
@@ -845,6 +848,9 @@ function calcMaxPossible(playerName){
     });
   }
 
+  if(playerName==='Kevin Pichelman'){
+    console.log('[DEBUG] Kevin koMax:', koMax, 'final total:', groupMax+koMax, 'hasKoPicks:', hasKoPicks);
+  }
   return groupMax+koMax;
 }
 
