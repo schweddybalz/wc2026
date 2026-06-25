@@ -788,17 +788,26 @@ function calcMaxPossible(playerName){
       const r=state.results[m.id];
       return r&&r.hg!==''&&r.hg!==undefined&&r.ag!==''&&r.ag!==undefined&&!isNaN(parseInt(r.hg))&&!isNaN(parseInt(r.ag));
     });
+    if(letter==='B'&&playerName){
+      console.log('[DEBUG]',playerName,'Group B allPlayed:',allPlayed,'picks:',JSON.stringify((player.groupPicks&&player.groupPicks['B'])||{}));
+    }
     if(!allPlayed){
       groupMax+=6; // max 3 picks × 2pts
       return;
     }
     // Group finished — count only what was actually earned
     const table=calcGroupTable(letter);
+    if(letter==='B'&&playerName){
+      console.log('[DEBUG] Group B table order:',table.map(t=>t.name).join(', '));
+    }
     const picks=(player.groupPicks&&player.groupPicks[letter])||{};
     [1,2,3].forEach(rank=>{
       const t=picks[rank]; if(!t) return;
       const adv=table[0]?.name===t||table[1]?.name===t||(advancingThirds.includes(t)&&table[2]?.name===t);
       if(adv){ groupMax++; if(table.findIndex(r=>r.name===t)+1===rank) groupMax++; }
+      if(letter==='B'&&playerName){
+        console.log('[DEBUG] rank',rank,'pick:',t,'adv:',adv);
+      }
     });
   });
   groupMax=Math.min(groupMax,64);
